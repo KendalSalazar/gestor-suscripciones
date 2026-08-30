@@ -2,11 +2,14 @@
   "name": "gestor-suscripciones",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "build": "tsc",
-  "start": "node dist/server.js"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "postbuild": "node -e \"require('fs').cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/db/migrate.ts"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +33,6 @@
     "@types/node": "^26.4.0",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "^5.7.0"
   }
 }
