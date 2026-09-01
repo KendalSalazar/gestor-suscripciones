@@ -30,6 +30,9 @@ const jwtRefreshSecret = required('JWT_REFRESH_SECRET');
 if (jwtAccessSecret.length < 32 || jwtRefreshSecret.length < 32) {
   throw new Error('JWT secrets must contain at least 32 characters');
 }
+if (nodeEnvValue === 'production' && (jwtAccessSecret.startsWith('change_me_') || jwtRefreshSecret.startsWith('change_me_'))) {
+  throw new Error('JWT secrets must be replaced in production');
+}
 
 const logLevel = required('LOG_LEVEL');
 if (!['info', 'warn', 'error'].includes(logLevel)) {
