@@ -60,6 +60,7 @@ export const logger = winston.createLogger({
 });
 
 export const authLogger = logger.child({ context: 'auth' });
+export const subscriptionLogger = logger.child({ context: 'subscription' });
 export const paymentLogger = logger.child({ context: 'payment' });
 export const jobLogger = logger.child({ context: 'job' });
 export const dbLogger = logger.child({ context: 'db' });

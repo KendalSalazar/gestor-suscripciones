@@ -204,3 +204,29 @@ export async function logout(rawToken?: string): Promise<string | undefined> {
   authLogger.info('Logout succeeded', userId ? { userId } : undefined);
   return userId;
 }
+
+export async function getMe(userId: string): Promise<{
+  user: PublicUser;
+  personalGroupId: string;
+}> {
+  const result = await pool.query<PublicUser & { personal_group_id: string }>(
+    `SELECT u.id, u.email, u.name, g.id AS personal_group_id
+     FROM users u
+     JOIN groups g ON g.owner_id = u.id AND g.type = 'personal'
+     JOIN group_members gm
+       ON gm.group_id = g.id AND gm.user_id = u.id AND gm.status = 'active'
+     WHERE u.id = $1`,
+    [userId],
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    authLogger.error('Authenticated user profile missing', { userId });
+    throw new AppError(500, 'Internal server error');
+  }
+
+  return {
+    user: asPublicUser(row),
+    personalGroupId: row.personal_group_id,
+  };
+}

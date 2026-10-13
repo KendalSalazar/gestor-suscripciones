@@ -29,6 +29,8 @@ export async function logout(request: Request, response: Response): Promise<void
   response.status(204).send();
 }
 
-export function me(request: Request, response: Response): void {
-  response.status(200).json({ user: request.user });
+export async function me(request: Request, response: Response): Promise<void> {
+  if (!request.user) throw new AppError(401, 'Unauthorized');
+  const profile = await authService.getMe(request.user.id);
+  response.status(200).json(profile);
 }
