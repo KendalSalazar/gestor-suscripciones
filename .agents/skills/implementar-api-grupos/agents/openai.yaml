@@ -1,0 +1,3 @@
+interface:
+  display_name: "API con permisos por grupo"
+  short_description: "Rutas HTTP con validación y aislamiento por grupo"

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Integración de interfaz y API"
+  short_description: "Formularios y pantallas conectados a la API real"
