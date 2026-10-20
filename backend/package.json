@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/db/migrate.ts",
+    "payments:generate": "tsx src/modules/payments/generate-payments.cli.ts",
     "test": "vitest run"
   },
   "keywords": [],

@@ -36,6 +36,3 @@ Thumbs.db
 
 # Docker
 pgdata/
-
-# Prompts
-prompts/

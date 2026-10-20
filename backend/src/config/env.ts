@@ -39,6 +39,13 @@ if (!['info', 'warn', 'error'].includes(logLevel)) {
   throw new Error('LOG_LEVEL must be info, warn, or error');
 }
 
+const paymentTimeZone = process.env.PAYMENT_TIME_ZONE || 'America/Costa_Rica';
+try {
+  new Intl.DateTimeFormat('en-US', { timeZone: paymentTimeZone });
+} catch {
+  throw new Error('PAYMENT_TIME_ZONE must be a valid IANA time zone');
+}
+
 export const env = {
   nodeEnv: nodeEnvValue as 'development' | 'production' | 'test',
   isProd: nodeEnvValue === 'production',
@@ -50,4 +57,5 @@ export const env = {
   jwtRefreshExpiresIn: required('JWT_REFRESH_EXPIRES_IN'),
   logLevel: logLevel as 'info' | 'warn' | 'error',
   logDir: required('LOG_DIR'),
+  paymentTimeZone,
 };

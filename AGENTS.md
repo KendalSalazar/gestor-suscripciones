@@ -11,8 +11,8 @@ En cada implementación, sigue el plan de la fase poco a poco: aborda un bloque 
 Antes de cambiar código:
 
 1. Inspecciona el estado real del repositorio y los archivos relacionados. Los planes describen objetivos y decisiones; no prueban que una funcionalidad ya esté implementada.
-2. Lee el plan de fase aplicable en `prompts/plan-fases/`. `plan-fase-1.md`, `plan-fase-2.md` y `plan-fase-3.md` contienen el diseño y los pasos detallados de cada fase.
-3. Para contexto original y alcance de una fase, consulta el prompt correspondiente en `prompts/01-fase.md`, `prompts/02-fase.md` o `prompts/03-fase.md`.
+2. Lee el plan de fase aplicable en `prompts/plan-fases/`. Los planes 1 a 4 contienen el diseño y los pasos detallados de cada fase.
+3. Para contexto original y alcance de una fase, consulta el documento correspondiente en `prompts/01-fase.md` a `prompts/04-fase.md`.
 4. Si trabajas en `frontend/`, lee también `frontend/AGENTS.md`. Respeta sus instrucciones sobre la versión de Next.js y consulta la documentación local indicada allí antes de modificar APIs del framework.
 
 No dupliques planes completos en este archivo. Si una decisión detallada no aparece aquí, prevalece el plan de la fase correspondiente, siempre contrastado con el código vigente. Si código y documentación discrepan, señala la discrepancia antes de hacer cambios de alcance amplio.
@@ -27,9 +27,9 @@ No dupliques planes completos en este archivo. Si una decisión detallada no apa
 - Las migraciones SQL están en `backend/src/db/migrations/`; el runner de `backend/src/db/migrate.ts` las aplica y registra.
 - El backend organiza funcionalidades en módulos bajo `backend/src/modules/`. Los tests existentes se ubican junto al código bajo `src/`.
 
-### Estado conocido al crear esta guía
+### Estado conocido al iniciar la Fase 4
 
-El código contiene la base del backend y autenticación (migraciones `001` a `004`, `GET /health` y módulo `auth`). La Fase 3 está planificada en `prompts/plan-fases/plan-fase-3.md`, pero todavía no se ve implementada: no asumir que existen la migración `005`, CRUD de suscripciones o dashboard. Verifica el estado actual antes de continuar o actualizar esta nota.
+Las fases 1 a 3 están implementadas: migraciones `001` a `005`, autenticación, CRUD de suscripciones y dashboard personal. La Fase 4 está diseñada en `prompts/plan-fases/plan-fase-4.md`; sus bloques de pagos todavía deben contrastarse con el código antes de marcarlos como completados. Verifica siempre el estado actual del repositorio.
 
 ## Dominio
 
@@ -37,7 +37,7 @@ El código contiene la base del backend y autenticación (migraciones `001` a `0
 - `groups` puede ser `personal` o `family`. El modo individual es un grupo personal con el usuario como owner.
 - `group_members` relaciona usuarios con grupos y contiene `role` (`owner` o `member`) y `status` (`active`, `invited` o `removed`). El registro crea el grupo personal y su membresía activa de owner.
 - Las suscripciones pertenecen a un grupo, no directamente a un usuario. Consulta el plan de Fase 3 para el esquema y las reglas acordadas.
-- Pagos, partes de pago, jobs, notificaciones, invitaciones y gestión avanzada de grupos pertenecen a fases posteriores; no los adelantes al implementar una fase anterior.
+- Pagos y generación programada corresponden a la Fase 4. Partes de pago e invitaciones son de Fase 5; notificaciones y anomalías adicionales son de Fase 6. No adelantes esas funciones.
 
 ## Decisiones técnicas y de seguridad
 
