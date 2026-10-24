@@ -96,9 +96,9 @@ export async function createSubscription(
   const result = await subscriptionQuery<SubscriptionRow>(
     'create',
     `INSERT INTO subscriptions (
-       group_id, name, provider, expected_cost, billing_cycle, next_billing_date
+       group_id, name, provider, expected_cost, billing_cycle, next_billing_date, billing_anchor_day
      )
-     VALUES ($1, $2, $3, $4, $5, $6)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING ${subscriptionColumns}`,
     [
       groupId,
@@ -107,6 +107,7 @@ export async function createSubscription(
       input.expectedCost,
       input.billingCycle,
       input.nextBillingDate,
+      Number(input.nextBillingDate.slice(8, 10)),
     ],
   );
 
@@ -147,6 +148,12 @@ export async function updateSubscription(
     }
   }
 
+  if (input.nextBillingDate !== undefined) {
+    // An explicit date edit establishes a new reference day without timezone conversion.
+    values.push(Number(input.nextBillingDate.slice(8, 10)));
+    assignments.push(`billing_anchor_day = $${values.length}`);
+  }
+
   if (assignments.length === 0) {
     throw new AppError(400, 'At least one field must be provided');
   }
@@ -179,14 +186,24 @@ export async function deleteSubscription(
   const membership = await getActiveMembership(userId, groupId, 'delete');
   assertOwner(membership, 'delete');
 
-  const result = await subscriptionQuery<{ id: string }>(
-    'delete',
-    `DELETE FROM subscriptions
-     -- Keep deletes scoped to the authorized group as well as the subscription id.
-     WHERE group_id = $1 AND id = $2
-     RETURNING id`,
-    [groupId, subscriptionId],
-  );
+  let result: QueryResult<{ id: string }>;
+  try {
+    result = await subscriptionQuery<{ id: string }>(
+      'delete',
+      `DELETE FROM subscriptions
+       -- Keep deletes scoped to the authorized group as well as the subscription id.
+       WHERE group_id = $1 AND id = $2
+       RETURNING id`,
+      [groupId, subscriptionId],
+    );
+  } catch (error) {
+    if (typeof error === 'object' && error !== null
+      && 'code' in error && error.code === '23503'
+      && 'constraint' in error && error.constraint === 'payments_subscription_id_fkey') {
+      throw new AppError(409, 'Subscription has payment history; deactivate it instead');
+    }
+    throw error;
+  }
 
   if (!result.rows[0]) {
     throw new AppError(404, 'Subscription not found');

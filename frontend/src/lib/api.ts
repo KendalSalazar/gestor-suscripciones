@@ -98,3 +98,17 @@ export function refreshSession(): Promise<string> {
   }
   return refreshPromise;
 }
+
+export async function apiWithSession<T>(path: string, init: RequestInit = {}): Promise<T | null> {
+  const originalToken = session.getAccessToken();
+  try {
+    return await api<T>(path, init);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+
+    // Another request may already have refreshed the token while this one failed.
+    const currentToken = session.getAccessToken();
+    if (!currentToken || currentToken === originalToken) await refreshSession();
+    return api<T>(path, init);
+  }
+}

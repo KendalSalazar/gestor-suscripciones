@@ -31,6 +31,8 @@ Un grupo inexistente y un usuario que no pertenece activamente a ese grupo recib
 
 `billingCycle` acepta `weekly`, `monthly`, `quarterly` o `yearly`. El costo puede enviarse como string decimal o número, pero siempre se devuelve como string para conservar el valor decimal de PostgreSQL.
 
+Al crear, el día de `nextBillingDate` establece el día de referencia de facturación (`billing_anchor_day`, interno). Este permite recuperar el día original tras un mes corto: por ejemplo, 31 de enero → 28 de febrero → 31 de marzo.
+
 Respuesta abreviada:
 
 ```json
@@ -67,9 +69,24 @@ Respuesta abreviada:
 
 Los campos permitidos son `name`, `provider`, `expectedCost`, `billingCycle`, `nextBillingDate` y `active`. Campos como `id` o `groupId` se rechazan.
 
+Enviar `nextBillingDate` restablece el día de referencia al día de esa fecha, en la misma actualización. Los demás cambios conservan el día de referencia. Editar `expectedCost` afecta a pagos generados después; los pagos existentes conservan su importe esperado original.
+
+Desactivar con `{ "active": false }` impide generar nuevos pagos y conserva los pagos existentes, que siguen disponibles en el listado del grupo.
+
 ### Borrar
 
-`DELETE /groups/:groupId/subscriptions/:subscriptionId` — solo owner. Devuelve `204` sin cuerpo.
+`DELETE /groups/:groupId/subscriptions/:subscriptionId` — solo owner. Una suscripción sin pagos devuelve `204` sin cuerpo. Si tiene historial de pagos, devuelve `409` y conserva la suscripción y sus pagos:
+
+```json
+{
+  "error": {
+    "message": "Subscription has payment history; deactivate it instead",
+    "status": 409
+  }
+}
+```
+
+En ese caso se puede desactivar mediante PATCH en lugar de borrar. Una suscripción inexistente dentro del grupo autorizado sigue devolviendo `404`.
 
 ## Errores
 
@@ -81,6 +98,7 @@ Los errores siguen el formato `{ "error": { "message": string, "status": number 
 | `401` | Falta el access token o no es válido |
 | `403` | No hay membresía activa o el rol no permite escribir |
 | `404` | La suscripción no existe dentro del grupo autorizado |
+| `409` | Se intentó borrar una suscripción con historial de pagos; se puede desactivar |
 | `500` | Error interno |
 
 ## Identidad para el dashboard

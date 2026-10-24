@@ -2,6 +2,7 @@ import { subscriptionLogger } from '../../config/logger';
 import { pool } from '../../db/pool';
 import { AppError } from '../../middleware/errorHandler';
 import type { Membership } from './subscription.types';
+import type { PoolClient } from 'pg';
 
 type MembershipRow = {
   group_id: string;
@@ -14,8 +15,9 @@ export async function getActiveMembership(
   userId: string,
   groupId: string,
   operation = 'subscription_access',
+  database: Pick<PoolClient, 'query'> = pool,
 ): Promise<Membership> {
-  const result = await pool.query<MembershipRow>(
+  const result = await database.query<MembershipRow>(
     `SELECT group_id, user_id, role, status
      FROM group_members
      WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,

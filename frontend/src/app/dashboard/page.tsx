@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { ApiError, api, refreshSession } from '@/lib/api';
+import { ApiError, apiWithSession, refreshSession } from '@/lib/api';
 import { session } from '@/lib/session';
+import PaymentsPanel from './payments-panel';
 
 type Subscription = {
   id: string;
@@ -73,6 +74,17 @@ export default function DashboardPage() {
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [pendingSubscriptionId, setPendingSubscriptionId] = useState<string | null>(null);
+  const [subscriptionsState, setSubscriptionsState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [subscriptionsError, setSubscriptionsError] = useState('');
+  const [subscriptionActionError, setSubscriptionActionError] = useState('');
+  const [subscriptionsVersion, setSubscriptionsVersion] = useState(0);
+  const [editingCostId, setEditingCostId] = useState<string | null>(null);
+  const [editedCost, setEditedCost] = useState('');
+
+  const handleSessionExpired = useCallback(() => {
+    session.setAccessToken(null);
+    setPageState('unauthenticated');
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -88,18 +100,12 @@ export default function DashboardPage() {
       }
 
       try {
-        const profile = await api<MeResponse>('/auth/me');
+        const profile = await apiWithSession<MeResponse>('/auth/me');
         if (!profile) throw new Error('El servidor no devolvió el perfil del usuario.');
-
-        const result = await api<SubscriptionsResponse>(
-          `/groups/${profile.personalGroupId}/subscriptions`,
-        );
-        if (!result) throw new Error('El servidor no devolvió las suscripciones.');
 
         if (isMounted) {
           setUserName(profile.user.name);
           setGroupId(profile.personalGroupId);
-          setSubscriptions(result.subscriptions);
           setPageState('ready');
         }
       } catch (error) {
@@ -122,14 +128,43 @@ export default function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!groupId) return;
+    let isMounted = true;
+
+    async function loadSubscriptions() {
+      setSubscriptionsState('loading');
+      setSubscriptionsError('');
+      try {
+        const result = await apiWithSession<SubscriptionsResponse>(`/groups/${groupId}/subscriptions`);
+        if (!result) throw new Error('El servidor no devolvió las suscripciones.');
+        if (isMounted) {
+          setSubscriptions(result.subscriptions);
+          setSubscriptionsState('ready');
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        if (error instanceof ApiError && error.status === 401) {
+          handleSessionExpired();
+          return;
+        }
+        setSubscriptionsError('No pudimos cargar tus suscripciones. Inténtalo de nuevo.');
+        setSubscriptionsState('error');
+      }
+    }
+
+    void loadSubscriptions();
+    return () => { isMounted = false; };
+  }, [groupId, subscriptionsVersion, handleSessionExpired]);
+
   async function createSubscription(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!groupId) return;
+    if (!groupId || isSaving || pendingSubscriptionId !== null || subscriptionsState !== 'ready') return;
 
     setFormError('');
     setIsSaving(true);
     try {
-      const result = await api<SubscriptionResponse>(`/groups/${groupId}/subscriptions`, {
+      const result = await apiWithSession<SubscriptionResponse>(`/groups/${groupId}/subscriptions`, {
         method: 'POST',
         body: JSON.stringify(form),
       });
@@ -138,6 +173,7 @@ export default function DashboardPage() {
       setSubscriptions((current) => [result.subscription, ...current]);
       setForm(initialForm);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) handleSessionExpired();
       setFormError(errorText(error));
     } finally {
       setIsSaving(false);
@@ -145,12 +181,12 @@ export default function DashboardPage() {
   }
 
   async function toggleSubscription(subscription: Subscription) {
-    if (!groupId) return;
-    setFormError('');
+    if (!groupId || pendingSubscriptionId !== null || isSaving) return;
+    setSubscriptionActionError('');
     setPendingSubscriptionId(subscription.id);
 
     try {
-      const result = await api<SubscriptionResponse>(
+      const result = await apiWithSession<SubscriptionResponse>(
         `/groups/${groupId}/subscriptions/${subscription.id}`,
         {
           method: 'PATCH',
@@ -163,24 +199,49 @@ export default function DashboardPage() {
         item.id === result.subscription.id ? result.subscription : item
       )));
     } catch (error) {
-      setFormError(errorText(error));
+      if (error instanceof ApiError && error.status === 401) handleSessionExpired();
+      setSubscriptionActionError(errorText(error));
     } finally {
       setPendingSubscriptionId(null);
     }
   }
 
   async function removeSubscription(subscription: Subscription) {
-    if (!groupId || !window.confirm(`¿Eliminar ${subscription.name}?`)) return;
-    setFormError('');
+    if (!groupId || pendingSubscriptionId !== null || isSaving || !window.confirm(`¿Eliminar ${subscription.name}?`)) return;
+    setSubscriptionActionError('');
     setPendingSubscriptionId(subscription.id);
 
     try {
-      await api<null>(`/groups/${groupId}/subscriptions/${subscription.id}`, {
+      await apiWithSession<null>(`/groups/${groupId}/subscriptions/${subscription.id}`, {
         method: 'DELETE',
       });
       setSubscriptions((current) => current.filter((item) => item.id !== subscription.id));
     } catch (error) {
-      setFormError(errorText(error));
+      if (error instanceof ApiError && error.status === 401) handleSessionExpired();
+      setSubscriptionActionError(error instanceof ApiError && error.status === 409
+        ? 'Esta suscripción tiene pagos registrados. Puedes desactivarla para conservar su historial.'
+        : errorText(error));
+    } finally {
+      setPendingSubscriptionId(null);
+    }
+  }
+
+  async function saveExpectedCost(event: FormEvent<HTMLFormElement>, subscription: Subscription) {
+    event.preventDefault();
+    if (!groupId || pendingSubscriptionId !== null || isSaving) return;
+    setSubscriptionActionError('');
+    setPendingSubscriptionId(subscription.id);
+    try {
+      const result = await apiWithSession<SubscriptionResponse>(`/groups/${groupId}/subscriptions/${subscription.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ expectedCost: editedCost }),
+      });
+      if (!result) throw new Error('El servidor no devolvió la suscripción actualizada.');
+      setSubscriptions((current) => current.map((item) => item.id === subscription.id ? result.subscription : item));
+      setEditingCostId(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) handleSessionExpired();
+      setSubscriptionActionError(errorText(error));
     } finally {
       setPendingSubscriptionId(null);
     }
@@ -189,7 +250,7 @@ export default function DashboardPage() {
   if (pageState === 'loading') {
     return (
       <main className="flex flex-1 items-center justify-center px-6 py-16">
-        <p className="text-slate-600" role="status">Cargando tus suscripciones…</p>
+        <p className="text-slate-600" role="status">Cargando tu espacio personal…</p>
       </main>
     );
   }
@@ -243,7 +304,9 @@ export default function DashboardPage() {
             <p className="mt-2 text-slate-600">Administra tus suscripciones y próximas fechas de cobro.</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            {subscriptions.length} {subscriptions.length === 1 ? 'suscripción' : 'suscripciones'}
+            {subscriptionsState === 'ready'
+              ? `${subscriptions.length} ${subscriptions.length === 1 ? 'suscripción' : 'suscripciones'}`
+              : 'Suscripciones'}
           </div>
         </header>
 
@@ -340,7 +403,7 @@ export default function DashboardPage() {
 
               <button
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-700 px-5 font-medium text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSaving}
+                disabled={isSaving || pendingSubscriptionId !== null || subscriptionsState !== 'ready'}
                 type="submit"
               >
                 {isSaving ? 'Guardando…' : 'Guardar suscripción'}
@@ -350,7 +413,21 @@ export default function DashboardPage() {
 
           <section>
             <h2 className="mb-4 text-xl font-semibold text-slate-950">Tus suscripciones</h2>
-            {subscriptions.length === 0 ? (
+            {subscriptionActionError && (
+              <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                {subscriptionActionError}
+              </p>
+            )}
+            {subscriptionsState === 'loading' ? (
+              <p className="rounded-3xl border border-slate-200 bg-white p-6 text-slate-600" role="status">Cargando suscripciones…</p>
+            ) : subscriptionsState === 'error' ? (
+              <div className="rounded-3xl border border-red-200 bg-white p-6">
+                <p className="text-sm text-red-700" role="alert">{subscriptionsError}</p>
+                <button className="mt-3 min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setSubscriptionsVersion((current) => current + 1)} type="button">
+                  Reintentar suscripciones
+                </button>
+              </div>
+            ) : subscriptions.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <p className="font-medium text-slate-800">Todavía no tienes suscripciones</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -385,18 +462,58 @@ export default function DashboardPage() {
                       </div>
                     </dl>
 
+                    {editingCostId === subscription.id && (
+                      <form className="mt-5 space-y-3 border-t border-slate-100 pt-4" onSubmit={(event) => void saveExpectedCost(event, subscription)}>
+                        <label className="block text-sm font-medium text-slate-700" htmlFor={`expected-cost-${subscription.id}`}>
+                          Nuevo coste esperado de {subscription.name}
+                        </label>
+                        <input
+                          aria-describedby={`cost-help-${subscription.id}`}
+                          className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                          disabled={pendingSubscriptionId !== null || isSaving}
+                          id={`expected-cost-${subscription.id}`}
+                          max="9999999999.99"
+                          min="0"
+                          onChange={(event) => setEditedCost(event.target.value)}
+                          required
+                          step="0.01"
+                          type="number"
+                          value={editedCost}
+                        />
+                        <p className="text-sm text-slate-600" id={`cost-help-${subscription.id}`}>
+                          Se usará en los próximos pagos que se generen. Los pagos ya registrados conservarán su importe esperado.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button className="min-h-10 rounded-lg bg-violet-700 px-3 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-60" disabled={pendingSubscriptionId !== null || isSaving} type="submit">
+                            {pendingSubscriptionId === subscription.id ? 'Guardando…' : 'Guardar coste'}
+                          </button>
+                          <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 disabled:opacity-60" disabled={pendingSubscriptionId !== null || isSaving} onClick={() => setEditingCostId(null)} type="button">
+                            Cancelar edición
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
                     <div className="mt-5 flex flex-wrap gap-2">
                       <button
                         className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        disabled={pendingSubscriptionId === subscription.id}
+                        disabled={pendingSubscriptionId !== null || isSaving}
                         onClick={() => void toggleSubscription(subscription)}
                         type="button"
                       >
                         {subscription.active ? 'Desactivar' : 'Activar'}
                       </button>
                       <button
+                        className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        disabled={pendingSubscriptionId !== null || isSaving}
+                        onClick={() => { setEditingCostId(subscription.id); setEditedCost(subscription.expectedCost); setSubscriptionActionError(''); }}
+                        type="button"
+                      >
+                        Editar coste
+                      </button>
+                      <button
                         className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-                        disabled={pendingSubscriptionId === subscription.id}
+                        disabled={pendingSubscriptionId !== null || isSaving}
                         onClick={() => void removeSubscription(subscription)}
                         type="button"
                       >
@@ -409,6 +526,7 @@ export default function DashboardPage() {
             )}
           </section>
         </div>
+        {groupId && <PaymentsPanel groupId={groupId} key={groupId} onSessionExpired={handleSessionExpired} />}
       </div>
     </main>
   );

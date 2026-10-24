@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { requireAuth } from './middleware/auth.middleware';
 import { notFound } from './middleware/notFound';
 import { authRouter } from './modules/auth/auth.routes';
+import { paymentRouter } from './modules/payments/payment.routes';
 import { subscriptionRouter } from './modules/subscriptions/subscription.routes';
 import { healthRouter } from './routes/health';
 
@@ -16,5 +17,6 @@ app.use(cookieParser());
 app.use(healthRouter);
 app.use('/auth', authRouter);
 app.use('/groups/:groupId/subscriptions', requireAuth, subscriptionRouter);
+app.use('/groups/:groupId/payments', requireAuth, paymentRouter);
 app.use(notFound);
 app.use(errorHandler);

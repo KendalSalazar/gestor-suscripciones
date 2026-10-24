@@ -100,12 +100,15 @@ Tests unitarios co-ubicados: fechas, schemas de importes, parámetros y estados.
 - [x] 006 aplicada una vez e idempotente al repetir migrate.
 - [ ] Pagos únicos por suscripción y fecha; FK restrictiva y constraints de estado/importe.
 - [ ] Ancla de facturación y recurrencia correcta en meses cortos y años bisiestos.
-- [x] Job transaccional, acotado e idempotente; ignora suscripciones inactivas y recupera atrasos (servicio y comando manual verificados; programación horaria pendiente).
-- [ ] Corrida inicial, corrida horaria y apagado limpio; zona horaria documentada.
-- [ ] Autenticación, membresía y rol correctos; aislamiento por grupo en cada consulta.
-- [ ] Confirmar/omitir una sola vez; importes string, priceChanged exacto, fechas YYYY-MM-DD.
-- [ ] DELETE conserva historial con 409; desactivar sigue disponible.
-- [ ] Dashboard muestra pendientes, historial, errores y acciones sin almacenar tokens en storage.
-- [ ] backend typecheck, test y build; frontend lint y typecheck.
+- [x] Job transaccional, acotado e idempotente; ignora suscripciones inactivas y recupera atrasos (servicio, comando manual y programación horaria implementados y comprobados).
+- [x] Bloque 5: GET de pagos y permisos implementados; validación, membresía, consulta delimitada por grupo y serialización comprobadas. Lectura del historial por HTTP con PostgreSQL local verificada en el bloque 6.
+- [x] Bloque 6: confirm/skip de owner, transacción con bloqueo, comparación NUMERIC, DELETE con historial y ancla de suscripciones implementados y verificados. Backend typecheck y build correctos; 135 pruebas aprobadas con RUN_DB_TESTS=1, sin omisiones (11 de integración de resolución, incluida una HTTP con PostgreSQL real). Concurrencia, rollback y limpieza de fixtures comprobados; revisión sin hallazgos. El punto de prueba HTTP se comprobó mediante una prueba automatizada con Bearer y la base local subscripciones_db; detenerse para revisión antes del bloque 7.
+- [x] Bloque 7: corrida inicial y horaria, exclusión de solapamientos, captura de fallos y reintento, apagado con espera de corrida activa y zona horaria documentada. Suite completa con RUN_DB_TESTS=1 aprobada (156 pruebas, sin omisiones), typecheck y build correctos; revisión sin hallazgos. Las 9 pruebas del scheduler usan reloj simulado y las 12 de servidor/configuración usan dependencias simuladas; no se ejecutó el ciclo de vida de un proceso real ni generación global para verificar. Detenerse para revisión antes del bloque 8.
+- [x] Bloque 8: dashboard personal con pendientes e historial independientes, confirmación con importe editable, omisión con confirmación, diferencia de importe, edición explícita del coste y explicación de DELETE con historial. Frontend lint, tsc --noEmit y build aprobados; revisión sin hallazgos. Flujo comprobado en Chrome con frontend de producción, API y PostgreSQL reales usando datos exclusivos que se limpiaron: login, recarga con refresh, acciones, conflictos, errores independientes, refresh coordinado ante 401 y vista móvil. No se ejecutó el scheduler global para las pruebas. Detenerse para revisión antes del bloque 9.
+- [x] Autenticación, membresía y rol correctos; aislamiento por grupo en cada consulta.
+- [x] Confirmar/omitir una sola vez; importes string, priceChanged exacto, fechas YYYY-MM-DD.
+- [x] DELETE conserva historial con 409; desactivar sigue disponible.
+- [x] Dashboard muestra pendientes, historial, errores y acciones sin almacenar tokens en storage.
+- [x] backend typecheck, test y build (bloque 7); frontend lint, typecheck y build (bloque 8).
 - [ ] Pruebas manuales de API y navegador aprobadas.
 - [ ] backend/docs/payments.md actualizado; sin payment_shares, notificaciones ni dependencias nuevas.

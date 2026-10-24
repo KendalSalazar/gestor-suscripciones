@@ -61,6 +61,15 @@ Las fases 1 a 3 están implementadas: migraciones `001` a `005`, autenticación,
 - Actualiza documentación cuando cambie un contrato HTTP o una decisión de arquitectura.
 - Informa qué cambió y qué verificaciones se ejecutaron. No afirmes que una fase está completa solo porque exista su plan; contrasta su checklist con el código y las verificaciones pertinentes.
 
+## Orquestación con subagentes
+
+- El agente principal tiene autorización permanente para delegar tareas a subagentes cuando aporten valor al trabajo solicitado, sin pedir confirmación en cada ocasión. Puede resolver directamente tareas pequeñas o estrechamente dependientes.
+- Usa los perfiles de `.codex/agents/`: `backend` para servidor y persistencia, `frontend` para interfaz e integración y `reviewer` para revisión con evidencia sin editar archivos. Aplica las skills pertinentes de `.agents/skills/` según la tarea, tanto en el principal como en los subagentes.
+- Antes de delegar, define objetivo, alcance, archivos asignados, dependencias y resultado esperado. Comparte las instrucciones aplicables, el plan vigente y el contexto necesario; no presupongas memoria de conversaciones anteriores.
+- Mantén un único responsable de escritura por archivo y conserva los cambios ajenos. Ejecuta en paralelo solo tareas independientes; una revisión del resultado debe esperar a que la implementación esté disponible.
+- La delegación conserva el alcance y los permisos de la tarea original. No autoriza adelantar bloques o fases, aplicar cambios externos ni realizar operaciones adicionales sobre datos. Los subagentes no deben crear otros subagentes por iniciativa propia.
+- El principal coordina e integra los resultados, contrasta los hallazgos y comunica brevemente qué se delegó y por qué. Entrega una explicación en español y las comprobaciones reales, manteniendo el objetivo de aprendizaje y la parada después de cada bloque.
+
 ## Comandos útiles
 
 Ejecuta los comandos desde la raíz usando `--dir` o desde el paquete correspondiente:
