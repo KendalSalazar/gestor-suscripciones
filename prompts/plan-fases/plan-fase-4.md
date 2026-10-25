@@ -2,6 +2,10 @@
 
 Guía de implementación para este proyecto individual de aprendizaje. Ejecutar **un bloque por vez** y detenerse después de explicar y verificar cada bloque. Este documento describe la fase completa; no autoriza adelantar la Fase 5 ni la Fase 6.
 
+**Estado: Fase 4 cerrada el 24 de octubre de 2026.** La evidencia, el método de
+las pruebas y sus límites están en [el informe de cierre](../../backend/docs/phase-4-verification.md).
+El apartado siguiente conserva el punto de partida histórico de la fase.
+
 ## 0. Estado y alcance
 
 El repositorio ya tiene migraciones 001–005, autenticación Bearer con refresh por cookie, grupos personales, memberships, CRUD de suscripciones y dashboard. La tabla subscriptions contiene expected_cost NUMERIC(12,2), billing_cycle, next_billing_date DATE y active. El backend usa Express 5, pg, Zod, Winston, SQL directo y un runner de migraciones por filename. El frontend usa Next.js App Router y fetch. Antes de implementar, contrastar este resumen con los archivos reales.
@@ -98,17 +102,18 @@ Después de **cada** bloque, explicar qué cambió, por qué, qué archivos part
 Tests unitarios co-ubicados: fechas, schemas de importes, parámetros y estados. Tests de integración optativos con PostgreSQL local para transacciones, idempotencia, snapshots de costo, permisos, confirm/skip y protección de DELETE. Los datos de prueba deben tener un prefijo exclusivo y limpiarse solo por ese prefijo; pnpm test debe seguir funcionando sin Docker. Usar un flag RUN_DB_TESTS=1 para habilitar la integración local. Probar HTTP y navegador manualmente en los puntos indicados.
 
 - [x] 006 aplicada una vez e idempotente al repetir migrate.
-- [ ] Pagos únicos por suscripción y fecha; FK restrictiva y constraints de estado/importe.
-- [ ] Ancla de facturación y recurrencia correcta en meses cortos y años bisiestos.
+- [x] Pagos únicos por suscripción y fecha; FK restrictiva y constraints de estado/importe, inspeccionados en public y comprobados con 27 pruebas nuevas de integración.
+- [x] Ancla de facturación y recurrencia correcta en meses cortos y años bisiestos; tests de fechas aprobados y backfill real de 006 comprobado en esquema aislado.
 - [x] Job transaccional, acotado e idempotente; ignora suscripciones inactivas y recupera atrasos (servicio, comando manual y programación horaria implementados y comprobados).
 - [x] Bloque 5: GET de pagos y permisos implementados; validación, membresía, consulta delimitada por grupo y serialización comprobadas. Lectura del historial por HTTP con PostgreSQL local verificada en el bloque 6.
 - [x] Bloque 6: confirm/skip de owner, transacción con bloqueo, comparación NUMERIC, DELETE con historial y ancla de suscripciones implementados y verificados. Backend typecheck y build correctos; 135 pruebas aprobadas con RUN_DB_TESTS=1, sin omisiones (11 de integración de resolución, incluida una HTTP con PostgreSQL real). Concurrencia, rollback y limpieza de fixtures comprobados; revisión sin hallazgos. El punto de prueba HTTP se comprobó mediante una prueba automatizada con Bearer y la base local subscripciones_db; detenerse para revisión antes del bloque 7.
 - [x] Bloque 7: corrida inicial y horaria, exclusión de solapamientos, captura de fallos y reintento, apagado con espera de corrida activa y zona horaria documentada. Suite completa con RUN_DB_TESTS=1 aprobada (156 pruebas, sin omisiones), typecheck y build correctos; revisión sin hallazgos. Las 9 pruebas del scheduler usan reloj simulado y las 12 de servidor/configuración usan dependencias simuladas; no se ejecutó el ciclo de vida de un proceso real ni generación global para verificar. Detenerse para revisión antes del bloque 8.
 - [x] Bloque 8: dashboard personal con pendientes e historial independientes, confirmación con importe editable, omisión con confirmación, diferencia de importe, edición explícita del coste y explicación de DELETE con historial. Frontend lint, tsc --noEmit y build aprobados; revisión sin hallazgos. Flujo comprobado en Chrome con frontend de producción, API y PostgreSQL reales usando datos exclusivos que se limpiaron: login, recarga con refresh, acciones, conflictos, errores independientes, refresh coordinado ante 401 y vista móvil. No se ejecutó el scheduler global para las pruebas. Detenerse para revisión antes del bloque 9.
+- [x] Bloque 9: documentación final de pagos/dashboard e informe de cierre; esquema real inspeccionado, suite ampliada y procesos Node reales probados en esquema aislado. 183 pruebas aprobadas con RUN_DB_TESTS=1, sin omisiones; por defecto 140 aprobadas y 43 de integración omitidas. Backend typecheck/build correctos. El apagado esperó al generador real; señales emitidas por IPC dentro de los hijos Node en Windows, sin atribuir prueba manual de Ctrl+C. Fixtures y esquema temporal eliminados. Revisión final sin hallazgos pendientes; enlaces Markdown y diff comprobados.
 - [x] Autenticación, membresía y rol correctos; aislamiento por grupo en cada consulta.
 - [x] Confirmar/omitir una sola vez; importes string, priceChanged exacto, fechas YYYY-MM-DD.
 - [x] DELETE conserva historial con 409; desactivar sigue disponible.
 - [x] Dashboard muestra pendientes, historial, errores y acciones sin almacenar tokens en storage.
 - [x] backend typecheck, test y build (bloque 7); frontend lint, typecheck y build (bloque 8).
-- [ ] Pruebas manuales de API y navegador aprobadas.
-- [ ] backend/docs/payments.md actualizado; sin payment_shares, notificaciones ni dependencias nuevas.
+- [x] Recorridos de API y navegador comprobados con HTTP y Chrome automatizado sobre API/PostgreSQL reales; método documentado, sin atribuir aprobación manual al propietario.
+- [x] backend/docs/payments.md actualizado, enlazado al dashboard y al informe de cierre; sin tablas o implementación de payment_shares/notificaciones ni dependencias nuevas.

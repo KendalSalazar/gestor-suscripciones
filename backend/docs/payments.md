@@ -1,4 +1,7 @@
-# Pagos — API y generación programada (Fase 4, bloques 5 a 7)
+# Pagos — API, generación programada y dashboard (Fase 4)
+
+Fase 4 cerrada el 24 de octubre de 2026. Ver
+[evidencia y alcance de las comprobaciones](phase-4-verification.md).
 
 ## Listar pagos de un grupo
 
@@ -140,6 +143,20 @@ Una segunda señal no repite el cierre. En Windows, `Ctrl+C` permite comprobar
 el manejador de `SIGINT`; finalizar el proceso de forma forzada no garantiza
 que se ejecute este apagado ordenado.
 
+## Dashboard personal
+
+El dashboard permite consultar pendientes e historial con carga, vacío, error y
+reintento independientes del listado de suscripciones. Confirmar prellena el
+importe esperado y permite corregirlo; omitir pide confirmación. Después de
+resolver o recibir un conflicto 409, las listas vuelven a consultar la API.
+
+El historial destaca importes diferentes al esperado. El coste de la suscripción
+se edita explícitamente para pagos futuros; los anteriores conservan su captura.
+Ante DELETE con historial, la interfaz explica que se puede desactivar. Los tokens
+siguen en memoria y la cookie httpOnly permite recuperar sesión al recargar.
+
+Consultar [el recorrido y los archivos del frontend](../../frontend/README.md#dashboard-personal--fase-4-bloque-8).
+
 ## Comprobación
 
 Desde un cliente HTTP, enviar `GET http://localhost:3001/groups/<groupId>/payments?status=pending`
@@ -199,11 +216,18 @@ Con `LOG_LEVEL=info`, revisar `Payment scheduler started` y los conteos del
 generador; al pulsar `Ctrl+C`, revisar `Shutdown requested`,
 `Payment scheduler stopped` y el cierre del pool. Las pruebas automatizadas
 del scheduler no lanzan generación global sobre la base de desarrollo ni esperan
-una hora real. El dashboard de pagos corresponde al bloque 8.
+una hora real. El dashboard de pagos está implementado en el bloque 8.
 
 Comprobación ejecutada del bloque 7: suite completa con `RUN_DB_TESTS=1`
 aprobada (156 pruebas, sin omisiones), typecheck y build correctos, y revisión
 sin hallazgos. Incluye 9 pruebas del scheduler y 12 de servidor/configuración.
 El ciclo de vida se comprobó con reloj y dependencias simulados; las 16 pruebas
 de integración de generación y resolución sí usaron PostgreSQL real con datos
-exclusivos. No se arrancó un proceso normal del servidor para esta comprobación.
+exclusivos. En ese bloque no se arrancó un proceso normal del servidor para comprobar
+su ciclo de vida; el bloque 9 completó la prueba con procesos reales y un esquema
+aislado, según el [informe de cierre](phase-4-verification.md).
+
+El cierre incorpora 27 pruebas de restricciones de migración 006: la suite completa
+con `RUN_DB_TESTS=1` pasa con 183 pruebas, sin omisiones. Por defecto pasan 140 y
+se omiten 43 de integración. El informe detalla backfill, idempotencia, arranque,
+espera del generador al apagar y limpieza de los datos exclusivos.
