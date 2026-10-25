@@ -213,9 +213,17 @@ describe('payments HTTP API', () => {
     });
   }
 
-  function transactionMembership(role: 'owner' | 'member' = 'owner'): void {
+  function transactionMembership(
+    role: 'owner' | 'member' = 'owner',
+    groupType: 'personal' | 'family' = 'personal',
+    initialRole: 'owner' | 'member' = role,
+  ): void {
     mockClientQuery
       .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({
+        rows: [{ group_id: groupId, user_id: userId, role: initialRole, status: 'active' }],
+      })
+      .mockResolvedValueOnce({ rows: [{ type: groupType }] }) // group lock
       .mockResolvedValueOnce({
         rows: [{ group_id: groupId, user_id: userId, role, status: 'active' }],
       });
@@ -250,8 +258,12 @@ describe('payments HTTP API', () => {
     expect(mockClientQuery).toHaveBeenNthCalledWith(2,
       expect.stringContaining("status = 'active'"), [userId, groupId]);
     expect(mockClientQuery).toHaveBeenNthCalledWith(3,
+      expect.stringMatching(/FROM groups[\s\S]*WHERE id = \$1[\s\S]*FOR UPDATE/), [groupId]);
+    expect(mockClientQuery).toHaveBeenNthCalledWith(4,
+      expect.stringContaining("status = 'active'"), [userId, groupId]);
+    expect(mockClientQuery).toHaveBeenNthCalledWith(5,
       expect.stringContaining('FOR UPDATE OF p'), [groupId, paymentRow.id]);
-    const [sql, params] = mockClientQuery.mock.calls[3];
+    const [sql, params] = mockClientQuery.mock.calls[5];
     expect(sql).toContain('COALESCE($3::numeric, p.expected_amount) <> p.expected_amount');
     expect(sql).toContain('s.group_id = $1 AND p.id = $2');
     expect(params).toEqual([groupId, paymentRow.id, actualAmount ?? null]);
@@ -273,7 +285,7 @@ describe('payments HTTP API', () => {
       status: 'skipped', actualAmount: null, priceChanged: false,
       resolvedAt: '2026-10-23T12:00:00.000Z',
     } });
-    expect(mockClientQuery).toHaveBeenNthCalledWith(4,
+    expect(mockClientQuery).toHaveBeenNthCalledWith(6,
       expect.stringContaining("SET status = 'skipped', actual_amount = NULL"), [groupId, paymentRow.id]);
     expect(mockClientQuery).toHaveBeenLastCalledWith('COMMIT');
     expect(mockRelease).toHaveBeenCalledOnce();
@@ -285,7 +297,8 @@ describe('payments HTTP API', () => {
     const response = await postPayment(action, {});
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: { message: 'Forbidden', status: 403 } });
-    expect(mockClientQuery).toHaveBeenCalledTimes(3); // BEGIN, membership, ROLLBACK
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockClientQuery).toHaveBeenCalledTimes(5); // BEGIN, membership, group lock, membership, ROLLBACK
     expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockRelease).toHaveBeenCalledOnce();
   });
@@ -297,13 +310,77 @@ describe('payments HTTP API', () => {
     expect(mockRelease).toHaveBeenCalledOnce();
   });
 
+  it.each(['confirm', 'skip'] as const)('denies %s after ownership is lost while waiting for the group', async (action) => {
+    transactionMembership('member', 'personal', 'owner');
+
+    const response = await postPayment(action, {});
+    expect(response.status).toBe(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockClientQuery).toHaveBeenCalledTimes(5);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('denies resolution if the active membership disappears after the group lock', async () => {
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ group_id: groupId, user_id: userId, role: 'owner', status: 'active' }] })
+      .mockResolvedValueOnce({ rows: [{ type: 'personal' }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const response = await postPayment('confirm', {});
+    expect(response.status).toBe(403);
+    expect(mockClientQuery).toHaveBeenCalledTimes(5);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('keeps 403 if the group disappears after the initial membership check', async () => {
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ group_id: groupId, user_id: userId, role: 'owner', status: 'active' }] });
+
+    const response = await postPayment('confirm', {});
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: { message: 'Forbidden', status: 403 } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(4);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(['confirm', 'skip'] as const)('blocks direct family %s without writing the parent', async (action) => {
+    transactionMembership('owner', 'family');
+    mockClientQuery.mockResolvedValueOnce({ rows: [paymentRow] });
+
+    const response = await postPayment(action, {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: { status: 409, message: action === 'confirm'
+      ? 'Family payments must be confirmed through individual shares'
+      : 'Family payments must be skipped together with their shares' } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(6);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(['confirm', 'skip'] as const)('returns 404 for a missing family payment before the %s guard', async (action) => {
+    transactionMembership('owner', 'family');
+
+    const response = await postPayment(action, {});
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: { status: 404, message: 'Payment not found' } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(6);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
   it.each(['confirm', 'skip'] as const)('returns 404 for %s when the payment is missing in the authorized group', async (action) => {
     transactionMembership();
 
     const response = await postPayment(action, {});
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: { message: 'Payment not found', status: 404 } });
-    expect(mockClientQuery).toHaveBeenNthCalledWith(3,
+    expect(mockClientQuery).toHaveBeenNthCalledWith(5,
       expect.stringContaining('WHERE s.group_id = $1 AND p.id = $2'), [groupId, paymentRow.id]);
     expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockRelease).toHaveBeenCalledOnce();
@@ -318,7 +395,7 @@ describe('payments HTTP API', () => {
     const response = await postPayment(action, {});
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: { message: 'Payment already resolved', status: 409 } });
-    expect(mockClientQuery).toHaveBeenCalledTimes(4);
+    expect(mockClientQuery).toHaveBeenCalledTimes(6);
     expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockRelease).toHaveBeenCalledOnce();
   });
@@ -362,6 +439,32 @@ describe('payments HTTP API', () => {
     const response = await postPayment('confirm', {});
     expect(response.status).toBe(500);
     expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back and releases the client when the commit fails', async () => {
+    transactionMembership();
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [paymentRow] })
+      .mockResolvedValueOnce({ rows: [{ ...paymentRow, status: 'confirmed' }] })
+      .mockRejectedValueOnce(new Error('Commit failed'));
+
+    const response = await postPayment('confirm', {});
+    expect(response.status).toBe(500);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the original error and releases the client if rollback also fails', async () => {
+    transactionMembership();
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [paymentRow] })
+      .mockRejectedValueOnce(new Error('Update failed'))
+      .mockRejectedValueOnce(new Error('Rollback failed'));
+
+    const response = await postPayment('confirm', {});
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: { status: 500, message: 'Update failed' } });
     expect(mockRelease).toHaveBeenCalledOnce();
   });
 });

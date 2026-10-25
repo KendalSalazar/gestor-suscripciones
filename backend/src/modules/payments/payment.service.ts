@@ -1,5 +1,6 @@
 import { pool } from '../../db/pool';
 import { AppError } from '../../middleware/errorHandler';
+import { lockGroupForWrite } from '../groups/group-lock';
 import { assertOwner, getActiveMembership } from '../subscriptions/membership';
 import type { PaymentFilters } from './payment.schemas';
 import { toPayment, type Payment, type PaymentRow } from './payment.types';
@@ -60,6 +61,9 @@ async function resolvePayment(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await getActiveMembership(userId, groupId, 'resolve_payment', client);
+    const group = await lockGroupForWrite(client, groupId);
+    // A role or membership may have changed while this transaction waited.
     const membership = await getActiveMembership(userId, groupId, 'resolve_payment', client);
     assertOwner(membership, 'resolve_payment');
 
@@ -73,6 +77,11 @@ async function resolvePayment(
     );
     const payment = selected.rows[0];
     if (!payment) throw new AppError(404, 'Payment not found');
+    if (group.type === 'family') {
+      throw new AppError(409, status === 'confirmed'
+        ? 'Family payments must be confirmed through individual shares'
+        : 'Family payments must be skipped together with their shares');
+    }
     if (payment.status !== 'pending') throw new AppError(409, 'Payment already resolved');
 
     // The lock keeps another resolution waiting until this transaction finishes.

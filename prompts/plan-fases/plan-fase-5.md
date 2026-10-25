@@ -2,7 +2,8 @@
 
 Plan de implementación para este proyecto individual de aprendizaje. **Un bloque
 por entrega**, con explicación y comprobación antes de avanzar. El alcance
-original está en [05-fase.md](../05-fase.md). Este documento diseña; no implementa.
+original está en [05-fase.md](../05-fase.md). Este documento recoge el diseño y
+el avance contrastado de cada bloque.
 
 ## 0. Estado contrastado y requisito de entrada
 
@@ -27,7 +28,10 @@ de 2026 con restricciones, migración, procesos reales y documentación contrast
 consultar [el informe de cierre](../../backend/docs/phase-4-verification.md).
 Antes de implementar esta fase, comprobar que ese estado siga vigente. No convertir
 casillas en aprobadas por inferencia ni repetir verificaciones válidas sin motivo.
-La Fase 5 todavía no tiene implementación.
+Los bloques 1 a 6 están completados: revisión, datos de grupos e invitaciones,
+datos de partes, reparto puro, escrituras coordinadas y generación familiar.
+La lectura y resolución de partes, las nuevas rutas de grupos e invitaciones
+y la interfaz familiar siguen pendientes.
 
 Las reglas existentes siguen vigentes: SQL parametrizado, Zod strict, errores
 `{ error: { message, status } }`, dinero como strings, DATE `YYYY-MM-DD`, access
@@ -38,6 +42,210 @@ Reutilizar Express 5, pg, Zod, Winston, React y Next.js de los package.json
 actuales; node:crypto y BigInt no requieren instalar paquetes. No se prevén
 dependencias, scripts ni variables de entorno nuevas. Los límites iniciales de
 20 miembros y siete días se documentan como constantes del módulo, no secretos.
+
+### Bloque 1 — Plan y entrada revisados (25 de octubre de 2026)
+
+- [x] Carpeta de trabajo y raíz Git coincidentes; árbol limpio al comenzar,
+  con base en el commit `37d97e1`.
+- [x] Leídos AGENTS.md, la skill desarrollo-por-bloques, 05-fase.md, este plan
+  y el informe de cierre de Fase 4.
+- [x] Contrastados migraciones 001–006, registro y personalGroupId, membresía,
+  CRUD de suscripciones, generación y resolución de pagos, montaje de rutas,
+  scheduler y conexión del dashboard al grupo personal.
+- [x] Revisadas las decisiones de reparto igual, foto al generar, permisos,
+  confirmación propia, omisión conjunta e invitaciones con código de siete días;
+  se mantienen las decisiones del plan, sin discrepancias que exijan rediseñarlo.
+- [x] Confirmada la secuencia: preparar datos; coordinar escrituras y bloquear
+  resolución directa familiar; adaptar generación y partes; habilitar después
+  creación de familias e interfaz. No adelantar rutas familiares.
+
+Se reutiliza la evidencia de cierre: 183 pruebas aprobadas con PostgreSQL,
+typecheck/build de backend y las comprobaciones de frontend documentadas allí.
+Son resultados previos, no pruebas ejecutadas de nuevo en este bloque. El commit
+de cierre no modificó el código de producción; añadió pruebas y documentación.
+
+Esta revisión contrasta archivos y evidencia; no vuelve a inspeccionar la base
+en ejecución. Antes de aplicar 007, comprobar los datos reales de ownership y
+posibles pagos familiares heredados según la precondición de esa migración.
+Ese bloque fue exclusivamente documental: no incluyó SQL, código de producto
+ni nuevas dependencias. Esa entrega modificó únicamente este plan.
+
+### Bloque 2 — Datos de grupos e invitaciones comprobados (25 de octubre de 2026)
+
+- [x] Inspección previa de PostgreSQL 16.15, base local `subscripciones_db`,
+  esquema `public`: migraciones 001–006, diez grupos personales y ningún owner
+  incoherente, duplicado o inactivo; sin familias ni pagos familiares heredados.
+- [x] Creada y aplicada [007_family_groups_and_invitations.sql](../../backend/src/db/migrations/007_family_groups_and_invitations.sql).
+  Su preflight bloquea escrituras mientras comprueba incompatibilidades y falla
+  con conteos seguros; no repara ni elimina datos. Añade el índice de owner activo
+  único, su CHECK y group_invitations con estados, FK RESTRICT, hashes y restricciones.
+- [x] Runner existente ejecutado dos veces: primera aplicación de 007 y después
+  ninguna migración pendiente; 007 registrada una sola vez. `pnpm.cmd migrate`
+  falló al iniciar tsx por `uv_os_get_passwd`/ENOMEM en este entorno de Windows,
+  antes de ejecutar SQL. Se usó el mismo runner compilado: desde backend,
+  `pnpm.cmd build` y `node dist/db/migrate.js`, este último dos veces.
+- [x] Inspección posterior de pg_constraint, pg_indexes y pg_enum: restricciones
+  e índices previstos presentes; estados pending, accepted, declined, revoked y
+  expired. Se conservaron los conteos: diez usuarios, grupos y membresías, una
+  suscripción y cero pagos; group_invitations quedó vacía.
+- [x] [Pruebas aisladas de 007](../../backend/src/db/family-groups-migration.int.test.ts):
+  51 aprobadas, incluyendo estados, unicidad parcial, FK, normalización compatible
+  con String.trim(), datos heredados incompatibles y rollback. Esquema temporal
+  exclusivo eliminado y ausencia comprobada; no se ejecutó generación global.
+- [x] Suite completa con RUN_DB_TESTS=1: 234 aprobadas en 14 archivos. Sin el flag:
+  140 aprobadas y 94 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Revisión independiente sin hallazgos pendientes tras corregir el tratamiento
+  de espacios Unicode en email. No se añadieron dependencias ni rutas HTTP.
+
+El índice garantiza **como máximo** un owner activo. La existencia de uno y su
+coincidencia con groups.owner_id siguen siendo invariantes de los servicios
+transaccionales previstos; este bloque no afirma haberlas implementado.
+Al cerrar ese bloque, la migración 008, las partes, la API y la interfaz quedaron
+pendientes para sus propias entregas.
+
+### Bloque 3 — Datos de partes comprobados (25 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios pendientes
+  de los bloques anteriores. Inspección previa de `subscripciones_db/public`,
+  PostgreSQL 16.15: migraciones 001–007 registradas, sin payment_shares ni familias.
+- [x] Creada y aplicada [008_create_payment_shares.sql](../../backend/src/db/migrations/008_create_payment_shares.sql):
+  enum y tabla de partes, unicidad por pago/usuario, FK RESTRICT, importes finitos,
+  porcentaje entre 0 y 100 y coherencia de estados. Sin backfill ni cambios a payments.
+- [x] Runner compilado existente ejecutado dos veces tras build: aplicó únicamente
+  008 y después informó que no había pendientes; 008 registrada una sola vez.
+  Se mantuvo la alternativa de ejecución del bloque 2, sin modificar el runner.
+- [x] Inspección de esquema real: nueve columnas, ocho constraints, tres índices
+  (PK, UNIQUE y usuario/estado/pago) y estados pending, confirmed, skipped.
+  Verificados NUMERIC(12,2), NUMERIC(7,4), nulabilidad y ausencia de group_id duplicado.
+- [x] [Pruebas aisladas de 008](../../backend/src/db/payment-shares-migration.int.test.ts):
+  33 aprobadas. Tres pagos personales previos conservan todos sus campos y no
+  reciben partes; insertar, confirmar y omitir pagos personales sigue siendo válido.
+  Cubiertos estados, decimales string, cero/máximos, NaN/Infinity, unicidad, FK y rollback.
+- [x] Suite completa con RUN_DB_TESTS=1: 267 aprobadas en 15 archivos. Sin el flag:
+  140 aprobadas y 127 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Esquema temporal exclusivo eliminado y ausencia comprobada. Conteos existentes
+  conservados: diez usuarios, grupos y membresías, una suscripción y cero pagos;
+  invitaciones y partes vacías. No se ejecutó generación global.
+- [x] Revisión independiente de SQL y pruebas sin hallazgos pendientes.
+
+En esa entrega las restricciones validaron cada fila; el reparto, sus sumas, la
+foto de miembros y la autorización quedaron para los bloques siguientes. No hubo
+generación de partes, rutas nuevas ni cambios de interfaz. Al cerrar ese bloque,
+el cálculo del reparto seguía pendiente.
+
+### Bloque 4 — Reparto puro comprobado (25 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  Contrastados el plan, los contratos decimales y el patrón de funciones puras
+  existente, sin modificar schemas ni servicios.
+- [x] Creado [payment-sharing.ts](../../backend/src/modules/payments/payment-sharing.ts)
+  con `splitPaymentEqually(expectedAmount, participantIds)`, que devuelve
+  `PaymentShareAllocation[]`: userId canónico, shareAmount con dos decimales y
+  sharePercentage con cuatro, todos strings.
+- [x] Validados importe decimal string no negativo hasta 9999999999.99, entre
+  uno y veinte participantes, UUID válidos y ausencia de duplicados tras normalizar
+  mayúsculas. Se aceptan enteros, uno o dos decimales y ceros iniciales; los errores
+  de entrada producen RangeError, siguiendo el patrón del cálculo de fechas.
+- [x] Reparto de céntimos y de 1 000 000 unidades porcentuales con BigInt; restos
+  asignados a los primeros UUID ordenados. Porcentajes independientes del redondeo
+  de céntimos; salida serializable y array de entrada conservado.
+- [x] [Pruebas unitarias](../../backend/src/modules/payments/payment-sharing.test.ts):
+  54 aprobadas sin PostgreSQL. Casos 10.00/3, 0.01/3, resto de varios céntimos,
+  cero y máximo; invariantes de suma y equilibrio para los veinte tamaños de grupo,
+  permutaciones, normalización, validación, no mutación y JSON.
+- [x] Suite habitual sin RUN_DB_TESTS: 194 aprobadas y 127 de integración omitidas
+  en 16 archivos; flag restaurado. Typecheck y build correctos.
+- [x] Revisión independiente de código y pruebas sin hallazgos pendientes.
+
+No se repitió la integración con PostgreSQL: este bloque no consulta ni cambia
+datos, migraciones o servicios. La evidencia de 267 pruebas con base real del
+bloque 3 se conserva como resultado previo, no como una ejecución de este bloque.
+Al cerrar ese bloque, la función no tenía consumidores de producción. Capturar
+el reparto en el generador y comprobar sus transacciones quedó para el bloque 6;
+la casilla de foto e historial permanecía pendiente. El bloque 5 estaba pendiente.
+
+### Bloque 5 — Escrituras coordinadas y guardas comprobadas (25 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  Inspección previa de PostgreSQL 16.15, `subscripciones_db/public`: migraciones
+  001–008 registradas; diez usuarios, grupos y membresías, una suscripción y cero
+  pagos, invitaciones y partes.
+- [x] Nuevo [group-lock.ts](../../backend/src/modules/groups/group-lock.ts):
+  `lockGroupForWrite(client, groupId)` bloquea el grupo y devuelve su tipo; si
+  falta conserva `403 Forbidden`. No crea otro pool ni infraestructura de transacciones.
+- [x] Create/update/delete de [suscripciones](../../backend/src/modules/subscriptions/subscription.service.ts)
+  y confirm/skip de [pagos](../../backend/src/modules/payments/payment.service.ts)
+  usan un cliente desde BEGIN hasta COMMIT/ROLLBACK: membresía inicial, bloqueo de
+  grupo, nueva lectura de membresía y assertOwner antes de escribir. Liberación
+  del cliente incluso ante fallos; lecturas, ancla, strings, fechas y DELETE 409 conservados.
+- [x] Grupo antes de pago en resolución. Una vez localizado el pago dentro del
+  grupo autorizado, confirm y skip familiares devuelven 409 sin modificar padre
+  ni partes. Membresía/rol inválidos siguen dando 403; pago ausente o ajeno dentro
+  del grupo autorizado da 404 antes de la guarda. Personal conserva su resolución.
+- [x] Suites de suscripciones y HTTP de pagos: 41 y 54 pruebas aprobadas,
+  respectivamente, con cliente único, revalidación, fallos de commit/rollback,
+  guardas, errores y liberación de recursos.
+- [x] [Integración de escrituras](../../backend/src/modules/groups/group-writes.int.test.ts):
+  23 pruebas PostgreSQL aprobadas. Diez carreras observan espera real mediante
+  pg_blocking_pids del holder propio y luego exigen 403 tras democión o baja;
+  cinco operaciones por cada cambio, sin alterar suscripciones, pagos ni partes.
+  Cubiertas guardas con cero partes, pendientes y confirmación parcial, aislamiento
+  403/404 y rollback personal con NOWAIT y reintento.
+- [x] Suite completa con RUN_DB_TESTS=1: 376 aprobadas en 17 archivos. Sin el flag:
+  226 aprobadas y 150 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Fixtures exclusivas eliminadas; conteos de datos existentes conservados.
+  No se aplicó SQL de migración ni se ejecutó generación global.
+- [x] [Documentación de suscripciones](../../backend/docs/subscriptions.md) y
+  [pagos](../../backend/docs/payments.md) actualizada. Revisión independiente de
+  servicios, pruebas y documentación sin hallazgos pendientes.
+
+Las transferencias de las pruebas se simulan con SQL limitado a fixtures; no hay
+API de transferencia nueva. Al cerrar ese bloque, el generador conservaba la lógica
+de Fase 4 y su adaptación estaba pendiente del bloque 6. Confirmar el padre familiar
+permanece prohibido; skip familiar
+sigue bloqueado hasta implementar el conjunto atómico del bloque 9. Esa entrega
+no adelantó otros bloques ni la creación de familias por HTTP.
+
+### Bloque 6 — Generación familiar comprobada (25 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  Inspección previa de PostgreSQL 16.15, `subscripciones_db/public`, con migraciones
+  001–008 y sin familias ni partes existentes. Sin migraciones nuevas.
+- [x] Adaptado [payment-generation.service.ts](../../backend/src/modules/payments/payment-generation.service.ts):
+  primero hasta cien grupos disponibles ordenados por UUID con FOR UPDATE SKIP LOCKED,
+  sin precupo de suscripciones; después hasta cien suscripciones en total dentro de
+  esos grupos. UUID opcional aplicado en ambas selecciones y datos releídos tras locks.
+- [x] Foto de uno a veinte miembros activos bajo bloqueo, con owner coherente.
+  Pago nuevo con RETURNING id, reparto exacto y partes pending insertadas con UNNEST
+  en el mismo cliente y transacción que avanza la fecha. Personal sigue sin partes;
+  se conservan las métricas, el día de referencia, la zona y los 24 ciclos máximos.
+- [x] Conflictos familiares validan las cuotas y porcentajes usando el importe y
+  los UUID guardados; conservan estados e importes reales. Foto ausente o incoherente,
+  owner inválido o exceso de miembros abortan sin reparar ni avanzar fechas.
+- [x] [Unitarios del generador](../../backend/src/modules/payments/payment-generation.service.test.ts):
+  ocho aprobados. Comprueban el SQL de selección, filtros y límites, relectura,
+  continuidad de 24 ciclos y rollback/liberación. Las llamadas sin UUID usan solo
+  un cliente simulado; no se ejecutó un lote global real para comprobar el cupo.
+- [x] [Integración familiar](../../backend/src/modules/payments/payment-generation-family.int.test.ts):
+  dieciocho pruebas aprobadas con un Pool PostgreSQL real en un esquema exclusivo.
+  Cada generación recibió un UUID de fixture; otra suscripción vencida quedó intacta.
+  Cubiertos personal, cero, céntimo, atrasos, reintentos con nuevos miembros/coste,
+  resoluciones guardadas, corrupción y fallo real de INSERT por un CHECK solo local.
+- [x] Carreras PostgreSQL: grupo ocupado por alta/baja se omite con SKIP LOCKED;
+  una cadena con dos esperas observadas mediante pg_blocking_pids demuestra que
+  el alta espera al generador y que ambos pagos conservan sus fotos completas.
+- [x] Suite completa con RUN_DB_TESTS=1: 402 aprobadas en 19 archivos. Sin el flag:
+  234 aprobadas y 168 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Pools de prueba cerrados, esquema eliminado y ausencia comprobada. Conteos
+  de public conservados: diez usuarios, grupos y membresías, una suscripción y cero
+  pagos, partes e invitaciones. No se ejecutó generación global ni el servidor normal.
+- [x] Documentación de pagos actualizada y revisión independiente de servicio,
+  unitarios e integración sin hallazgos pendientes.
+
+Se completó la comprobación limitada a UUID mediante llamadas reales al servicio;
+no se presenta como una prueba manual del CLI. Las guardas familiares del bloque 5
+siguen activas. No hay rutas de partes nuevas: su lectura corresponde al bloque 7,
+la confirmación al 8 y la omisión al 9; no se han adelantado esos bloques.
 
 ## 1. Dominio y permisos
 
@@ -125,7 +333,9 @@ Ante datos incompatibles, detenerse con diagnóstico; no borrar ni inventar hist
   invited_by FK users RESTRICT, email TEXT normalizado, token_hash CHAR(64) UNIQUE,
   status pending por defecto, accepted_by UUID nullable FK users RESTRICT,
   created_at, expires_at y resolved_at TIMESTAMPTZ.
-- CHECK de email normalizado y longitud hasta 254; expires_at > created_at.
+- CHECK de email normalizado con los espacios que elimina String.trim() y longitud
+  de 1 a 254; hash hexadecimal SHA-256 de 64 caracteres en minúsculas;
+  expires_at > created_at.
   Pending exige resolved_at nulo; los estados terminales exigen resolved_at.
   accepted_by presente únicamente para accepted.
 - Único parcial `(group_id, email) WHERE status = 'pending'` e índices para
@@ -140,8 +350,10 @@ Ante datos incompatibles, detenerse con diagnóstico; no borrar ni inventar hist
   user_id UUID FK users RESTRICT; share_amount NUMERIC(12,2) NOT NULL;
   share_percentage NUMERIC(7,4) NOT NULL; actual_amount NUMERIC(12,2) nullable;
   status pending; confirmed_at TIMESTAMPTZ nullable; created_at TIMESTAMPTZ.
-- UNIQUE(payment_id, user_id); CHECK de importes no negativos y porcentaje
-  entre 0 y 100. Pending y skipped exigen actual_amount y confirmed_at nulos;
+- UNIQUE(payment_id, user_id); CHECK de importes finitos entre 0 y 9999999999.99
+  (el máximo de NUMERIC(12,2)), y porcentaje entre 0 y 100. El límite superior
+  también excluye NaN, que PostgreSQL considera mayor que los números finitos.
+  Pending y skipped exigen actual_amount y confirmed_at nulos;
   confirmed exige ambos presentes.
 - Reutilizar el índice creado por UNIQUE(payment_id, user_id), sin duplicarlo;
   añadir `(user_id, status, payment_id)` para consultas de partes propias.
@@ -498,14 +710,14 @@ En PowerShell puede ser necesario `pnpm.cmd`. Activar RUN_DB_TESTS solo para la
 comprobación pertinente y restaurar su valor después. No usar credenciales reales
 en ejemplos ni leer .env; las herramientas de la aplicación cargan su configuración.
 
-## 10. Checklist de cierre — implementación pendiente
+## 10. Checklist de cierre — implementación en curso
 
-- [x] Requisito previo: cierre de Fase 4 contrastado el 24 de octubre de 2026; la implementación de Fase 5 sigue pendiente.
-- [ ] Migraciones 007 y 008 aplicadas mediante runner y segunda ejecución sin pendientes.
+- [x] Requisito previo: cierre de Fase 4 contrastado el 24 de octubre de 2026; avance de Fase 5 registrado por bloque en la sección 0.
+- [x] Migraciones 007 y 008 aplicadas mediante runner y segunda ejecución sin pendientes.
 - [ ] Personal, autenticación, dinero y fechas conservan sus contratos.
 - [ ] Un owner activo coherente; transferencia, bajas y límite de miembros atómicos.
-- [ ] Reparto exacto, estable y capturado una vez; sin redistribución histórica.
-- [ ] Generación, partes y avance de fecha juntos; grupos ocupados no consumen el cupo antes de SKIP LOCKED.
+- [x] Reparto exacto, estable y capturado una vez; sin redistribución histórica.
+- [x] Generación, partes y avance de fecha juntos; grupos ocupados no consumen el cupo antes de SKIP LOCKED.
 - [ ] Solo se confirma la parte propia; padre familiar agregado y acumulado dentro de rango.
 - [ ] Skip global exclusivamente antes de confirmar partes; 409 preserva historia parcial.
 - [ ] Invitaciones con secreto de un uso, caducidad, hash y destinatario actual comprobados.

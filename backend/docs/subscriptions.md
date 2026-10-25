@@ -13,6 +13,14 @@ Base path: `/groups/:groupId/subscriptions`
 
 Un grupo inexistente y un usuario que no pertenece activamente a ese grupo reciben el mismo `403 Forbidden`. Para una persona autorizada, una suscripción inexistente dentro del grupo devuelve `404`.
 
+Desde el bloque 5 de Fase 5, crear, editar y borrar usan un único cliente de
+transacción: comprobar membresía activa, bloquear el grupo con `FOR UPDATE`,
+releer la membresía y exigir owner antes de escribir. Si la persona pierde su
+rol o su membresía mientras espera el bloqueo, la operación devuelve `403` sin
+modificar la suscripción. El bloqueo se mantiene hasta COMMIT o ROLLBACK y el
+cliente se devuelve al pool. Las lecturas mantienen la autorización y el filtro
+por grupo sin adquirir ese bloqueo exclusivo.
+
 ## Endpoints
 
 ### Crear

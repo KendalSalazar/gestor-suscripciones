@@ -9,8 +9,9 @@ aplicación no mueve dinero ni verifica transacciones con proveedores.
 La Fase 4 ya aporta pagos personales, generación programada, confirmación,
 omisión y dashboard. Su cierre quedó verificado el 24 de octubre de 2026,
 según [el informe correspondiente](../backend/docs/phase-4-verification.md).
-La Fase 5 sigue diseñada y pendiente de implementación; este documento no
-autoriza iniciarla sin el encargo de su bloque correspondiente.
+La Fase 5 se implementa por bloques; el avance comprobado figura en
+[el plan detallado](plan-fases/plan-fase-5.md). Este documento no autoriza
+adelantar bloques sin el encargo correspondiente.
 
 ## Objetivo
 

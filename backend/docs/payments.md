@@ -1,7 +1,10 @@
-# Pagos — API, generación programada y dashboard (Fase 4)
+# Pagos — API, generación programada y dashboard (Fases 4 y 5)
 
 Fase 4 cerrada el 24 de octubre de 2026. Ver
 [evidencia y alcance de las comprobaciones](phase-4-verification.md).
+El bloque 5 de Fase 5 coordina las escrituras por grupo y bloquea la resolución
+directa de pagos familiares. El bloque 6 incorpora la generación familiar con
+su reparto. Las acciones de partes siguen el [plan vigente](../../prompts/plan-fases/plan-fase-5.md).
 
 ## Listar pagos de un grupo
 
@@ -56,6 +59,11 @@ No se incluyen datos de usuarios, roles ni credenciales en la respuesta.
 
 `POST /groups/:groupId/payments/:paymentId/confirm` — solo owner activo.
 
+En un grupo familiar autorizado, un pago existente devuelve `409` con
+`Family payments must be confirmed through individual shares`, sin modificar
+el pago ni sus partes. La confirmación directa del pago completo queda reservada
+al modo personal; las acciones de partes corresponden a bloques posteriores.
+
 Enviar `Content-Type: application/json` y un objeto vacío `{}` para aceptar el
 importe esperado del pago. Para corregirlo, enviar un string decimal:
 
@@ -78,6 +86,10 @@ son iguales. El costo de la suscripción y el importe esperado del pago se conse
 
 `POST /groups/:groupId/payments/:paymentId/skip` — solo owner activo.
 
+Temporalmente, un pago familiar existente devuelve `409` con
+`Family payments must be skipped together with their shares`. La omisión
+atómica del conjunto se implementará en el bloque 9; no se modifica solo el padre.
+
 Enviar sin cuerpo o con `{}`. No se aceptan campos ni parámetros de query.
 Devuelve `200 { "payment": { ... } }` con `status: "skipped"`, `actualAmount: null`,
 `priceChanged: false` y `resolvedAt` presente.
@@ -90,11 +102,15 @@ inexistentes también reciben `403`.
 
 Si el grupo está autorizado pero el pago no existe en él, se devuelve `404
 Payment not found`. Un pago de otro grupo tampoco es accesible por conocer su UUID.
-Un pago confirmado u omitido devuelve `409 Payment already resolved` ante
-cualquier nueva resolución. No hay transición inversa en esta fase.
+En el modo personal, un pago confirmado u omitido devuelve `409 Payment already
+resolved` ante cualquier nueva resolución. No hay transición inversa en esta fase.
 
-Cada acción usa una transacción y un bloqueo `FOR UPDATE OF p`: si llegan dos
-resoluciones simultáneas, una espera y después comprueba el estado actualizado.
+Cada acción usa un único cliente de transacción: comprueba la membresía, bloquea
+primero el grupo con `FOR UPDATE`, vuelve a comprobar membresía activa y rol owner,
+y bloquea después el pago con `FOR UPDATE OF p`. Si pierde el permiso durante la
+espera, devuelve `403` antes de leer o resolver el pago. Si el pago no está dentro
+del grupo autorizado, devuelve `404` antes de aplicar la guarda familiar.
+Si llegan dos resoluciones simultáneas, una espera y comprueba el estado actualizado.
 Los errores hacen rollback y el cliente se devuelve al pool.
 
 Una suscripción con pagos devuelve `409` al intentar borrarla, con el mensaje
@@ -111,10 +127,67 @@ Formato: `{ "error": { "message": string, "status": number } }`.
 | `401` | Bearer ausente, inválido o caducado |
 | `403` | No existe membresía activa o la acción requiere owner |
 | `404` | El pago no existe dentro del grupo autorizado |
-| `409` | El pago ya está resuelto o se intenta borrar una suscripción con pagos |
+| `409` | Pago ya resuelto, resolución directa familiar bloqueada o borrado de suscripción con pagos |
 | `500` | Error interno |
 
-## Generación programada (bloque 7)
+## Generación familiar y recuperación de fechas (Fase 5, bloque 6)
+
+El generador inicia una transacción y bloquea hasta 100 grupos disponibles con
+suscripciones activas vencidas, ordenados por UUID. Usa `FOR UPDATE SKIP LOCKED`
+para omitir grupos ocupados antes de consumir el cupo de suscripciones. Después
+relee y bloquea hasta 100 suscripciones en total dentro de esos grupos, por fecha
+e id. El filtro opcional `--subscription-id` se aplica en ambas selecciones.
+
+En personal crea el pago sin partes. En familia comprueba que existan entre uno
+y veinte miembros activos, incluido un único owner coincidente con groups.owner_id.
+Con el grupo bloqueado, captura esos participantes y usa el reparto exacto para
+insertar una parte pending por persona, con importe previsto y porcentaje como
+decimales. El pago, las partes y el avance de next_billing_date se confirman juntos;
+un fallo revierte todos esos cambios. Se mantienen el día de referencia y el
+límite de 24 ciclos por suscripción y ejecución.
+
+La foto corresponde a los miembros activos **al generar**, incluso al recuperar
+cobros atrasados. Entrar o salir después no redistribuye pagos ya creados. Ante
+un conflicto de unicidad por suscripción/fecha, se conserva el pago existente.
+En familia se valida su reparto con el importe original y los UUID guardados,
+sin usar el coste ni la membresía actuales; no se cambian estados ni importes reales.
+Si falta una foto o sus cuotas son incoherentes, el lote falla sin repararla.
+
+La confirmación directa y la omisión del padre familiar siguen devolviendo 409
+según las guardas anteriores. Generar partes no habilita todavía sus acciones HTTP.
+
+Para una comprobación limitada, usar exclusivamente el UUID de una suscripción
+de prueba desde la raíz:
+
+```powershell
+pnpm.cmd --dir backend payments:generate --subscription-id <uuid-de-prueba>
+```
+
+En el entorno Windows donde tsx no puede iniciar, el mismo comando compilado se
+puede ejecutar desde backend después de `pnpm.cmd build`:
+
+```powershell
+node dist/modules/payments/generate-payments.cli.js --subscription-id <uuid-de-prueba>
+```
+
+Ambos comandos usan el día de PAYMENT_TIME_ZONE y el runner existente. El CLI
+conserva su capacidad de procesar toda la base cuando se ejecuta sin filtro; las
+pruebas con PostgreSQL de este bloque pasan siempre un UUID exclusivo de fixture.
+
+`payment-generation-family.int.test.ts` comprueba el bloque con un Pool de
+PostgreSQL real dirigido a un esquema temporal exclusivo. Sustituye únicamente
+la conexión exportada, sin simular SQL. Sus 18 casos cubren cuotas, atrasos,
+reintentos, corrupción, compatibilidad personal y rollback por un CHECK de prueba
+instalado solo en ese esquema. También prueban SKIP LOCKED ante altas/bajas y una
+cadena de dos esperas observadas con pg_blocking_pids: el generador espera por la
+tabla de partes de prueba y una incorporación espera por el grupo del generador.
+Al terminar se elimina el esquema temporal y se cierran los pools.
+
+Los ocho unitarios de `payment-generation.service.test.ts` comprueban los filtros,
+el SQL de selección y los límites sin PostgreSQL. Sus llamadas sin UUID usan un
+cliente simulado; no ejecutan generación global sobre una base real.
+
+## Generación programada (Fase 4, bloque 7)
 
 El servidor inicia el scheduler después de comprobar la conexión y aplicar las
 migraciones pendientes. Ejecuta una corrida inicial y vuelve a llamar al servicio
@@ -162,7 +235,8 @@ Consultar [el recorrido y los archivos del frontend](../../frontend/README.md#da
 Desde un cliente HTTP, enviar `GET http://localhost:3001/groups/<groupId>/payments?status=pending`
 con el Bearer de una cuenta de prueba. Comprobar también el listado sin filtro,
 un grupo ajeno (`403`), una petición sin Bearer (`401`) y `?status=paid` (`400`).
-Los pagos existentes se obtienen mediante el generador manual del bloque 4.
+Los pagos de prueba se obtienen mediante el comando manual descrito arriba,
+limitado al UUID de la suscripción de prueba.
 
 `pnpm --dir backend test` comprueba el recorrido HTTP con autenticación real
 y respuestas de PostgreSQL simuladas: validación, membresía, consulta
@@ -190,7 +264,7 @@ try {
 }
 ```
 
-Punto de prueba manual del bloque 6, con pagos distintos de una suscripción de prueba:
+Punto de prueba manual del bloque 6 de Fase 4, con pagos personales distintos de una suscripción de prueba:
 
 1. Confirmar uno con `{}`: el importe real debe coincidir con el esperado y `priceChanged` ser falso.
 2. Confirmar otro con un importe diferente: debe devolver `priceChanged: true` sin cambiar el costo de la suscripción.
