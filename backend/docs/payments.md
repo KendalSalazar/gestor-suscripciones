@@ -2,9 +2,12 @@
 
 Fase 4 cerrada el 24 de octubre de 2026. Ver
 [evidencia y alcance de las comprobaciones](phase-4-verification.md).
-El bloque 5 de Fase 5 coordina las escrituras por grupo y bloquea la resolución
-directa de pagos familiares. El bloque 6 incorpora la generación familiar con
+El bloque 5 de Fase 5 coordina las escrituras por grupo y bloquea la confirmación
+directa del pago familiar. El bloque 6 incorpora la generación familiar con
 su reparto. Las acciones de partes siguen el [plan vigente](../../prompts/plan-fases/plan-fase-5.md).
+Los bloques 7 y 8 permiten consultar [partes y reparto, y confirmar la parte propia](payment-shares.md),
+con el cierre agregado del pago al completar todas sus partes. El bloque 9
+permite omitir conjuntamente un pago familiar y sus partes pendientes.
 
 ## Listar pagos de un grupo
 
@@ -62,7 +65,8 @@ No se incluyen datos de usuarios, roles ni credenciales en la respuesta.
 En un grupo familiar autorizado, un pago existente devuelve `409` con
 `Family payments must be confirmed through individual shares`, sin modificar
 el pago ni sus partes. La confirmación directa del pago completo queda reservada
-al modo personal; las acciones de partes corresponden a bloques posteriores.
+al modo personal. En familia, cada persona confirma su parte mediante la
+[ruta de confirmación propia](payment-shares.md#confirmar-la-parte-propia).
 
 Enviar `Content-Type: application/json` y un objeto vacío `{}` para aceptar el
 importe esperado del pago. Para corregirlo, enviar un string decimal:
@@ -86,9 +90,19 @@ son iguales. El costo de la suscripción y el importe esperado del pago se conse
 
 `POST /groups/:groupId/payments/:paymentId/skip` — solo owner activo.
 
-Temporalmente, un pago familiar existente devuelve `409` con
-`Family payments must be skipped together with their shares`. La omisión
-atómica del conjunto se implementará en el bloque 9; no se modifica solo el padre.
+En una familia, el owner puede omitir el pago completo si el padre está pending,
+existe al menos una parte y todas las partes siguen pending. El pago y todas sus
+partes pasan a skipped en una misma transacción. Se conservan los importes
+previstos y el historial; actualAmount queda nulo. El pago registra resolvedAt,
+y confirmedAt de las partes permanece nulo.
+
+Si alguna parte ya fue confirmada u omitida, o el pago no tiene partes, la
+acción devuelve `409` sin modificar el conjunto. También devuelve `409` si el
+pago ya estaba resuelto. No se admite omitir una parte individual.
+
+Los conflictos específicos son `Family payment has no shares` y
+`Family payments can only be skipped while all shares are pending`. Si el pago
+ya fue resuelto, se conserva el mensaje `Payment already resolved`.
 
 Enviar sin cuerpo o con `{}`. No se aceptan campos ni parámetros de query.
 Devuelve `200 { "payment": { ... } }` con `status: "skipped"`, `actualAmount: null`,
@@ -102,12 +116,15 @@ inexistentes también reciben `403`.
 
 Si el grupo está autorizado pero el pago no existe en él, se devuelve `404
 Payment not found`. Un pago de otro grupo tampoco es accesible por conocer su UUID.
-En el modo personal, un pago confirmado u omitido devuelve `409 Payment already
-resolved` ante cualquier nueva resolución. No hay transición inversa en esta fase.
+Un pago confirmado u omitido devuelve `409 Payment already resolved` ante una
+nueva omisión. En el modo personal también se aplica a la confirmación repetida.
+La confirmación directa de un padre familiar sigue bloqueada.
 
 Cada acción usa un único cliente de transacción: comprueba la membresía, bloquea
 primero el grupo con `FOR UPDATE`, vuelve a comprobar membresía activa y rol owner,
-y bloquea después el pago con `FOR UPDATE OF p`. Si pierde el permiso durante la
+y bloquea después el pago con `FOR UPDATE OF p`. Al omitir una familia, bloquea
+también sus partes por id antes de verificar y actualizar el conjunto. Si pierde
+el permiso durante la
 espera, devuelve `403` antes de leer o resolver el pago. Si el pago no está dentro
 del grupo autorizado, devuelve `404` antes de aplicar la guarda familiar.
 Si llegan dos resoluciones simultáneas, una espera y comprueba el estado actualizado.
@@ -127,7 +144,7 @@ Formato: `{ "error": { "message": string, "status": number } }`.
 | `401` | Bearer ausente, inválido o caducado |
 | `403` | No existe membresía activa o la acción requiere owner |
 | `404` | El pago no existe dentro del grupo autorizado |
-| `409` | Pago ya resuelto, resolución directa familiar bloqueada o borrado de suscripción con pagos |
+| `409` | Pago resuelto, confirmación directa familiar, conjunto no apto para omitir o borrado con historial |
 | `500` | Error interno |
 
 ## Generación familiar y recuperación de fechas (Fase 5, bloque 6)
@@ -153,8 +170,9 @@ En familia se valida su reparto con el importe original y los UUID guardados,
 sin usar el coste ni la membresía actuales; no se cambian estados ni importes reales.
 Si falta una foto o sus cuotas son incoherentes, el lote falla sin repararla.
 
-La confirmación directa y la omisión del padre familiar siguen devolviendo 409
-según las guardas anteriores. Generar partes no habilita todavía sus acciones HTTP.
+La confirmación directa del padre familiar sigue devolviendo 409: cada persona
+confirma su propia parte. El owner puede omitir el conjunto mientras todas sus
+partes sigan pendientes, como se describe en la sección de omisión.
 
 Para una comprobación limitada, usar exclusivamente el UUID de una suscripción
 de prueba desde la raíz:

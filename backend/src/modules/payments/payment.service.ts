@@ -77,12 +77,36 @@ async function resolvePayment(
     );
     const payment = selected.rows[0];
     if (!payment) throw new AppError(404, 'Payment not found');
-    if (group.type === 'family') {
-      throw new AppError(409, status === 'confirmed'
-        ? 'Family payments must be confirmed through individual shares'
-        : 'Family payments must be skipped together with their shares');
+    if (group.type === 'family' && status === 'confirmed') {
+      throw new AppError(409, 'Family payments must be confirmed through individual shares');
     }
     if (payment.status !== 'pending') throw new AppError(409, 'Payment already resolved');
+
+    if (group.type === 'family') {
+      const shares = await client.query<{ id: string; status: PaymentRow['status'] }>(
+        `SELECT ps.id, ps.status
+         FROM payment_shares ps
+         JOIN payments p ON p.id = ps.payment_id
+         JOIN subscriptions s ON s.id = p.subscription_id
+         WHERE s.group_id = $1 AND p.id = $2
+         ORDER BY ps.id
+         FOR UPDATE OF ps`, [groupId, paymentId],
+      );
+      if (shares.rows.length === 0) throw new AppError(409, 'Family payment has no shares');
+      if (shares.rows.some((share) => share.status !== 'pending')) {
+        throw new AppError(409, 'Family payments can only be skipped while all shares are pending');
+      }
+
+      // The parent and every share are locked. A concurrent confirmation uses
+      // the same group → payment → share order and cannot leave a mixed result.
+      await client.query(
+        `UPDATE payment_shares ps
+         SET status = 'skipped', actual_amount = NULL, confirmed_at = NULL
+         FROM payments p
+         JOIN subscriptions s ON s.id = p.subscription_id
+         WHERE ps.payment_id = p.id AND s.group_id = $1 AND p.id = $2`, [groupId, paymentId],
+      );
+    }
 
     // The lock keeps another resolution waiting until this transaction finishes.
     // NUMERIC comparisons happen in PostgreSQL without converting money to Number.

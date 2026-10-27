@@ -348,18 +348,123 @@ describe('payments HTTP API', () => {
     expect(mockRelease).toHaveBeenCalledOnce();
   });
 
-  it.each(['confirm', 'skip'] as const)('blocks direct family %s without writing the parent', async (action) => {
+  it('blocks direct family confirmation without writing the parent or shares', async () => {
     transactionMembership('owner', 'family');
     mockClientQuery.mockResolvedValueOnce({ rows: [paymentRow] });
 
-    const response = await postPayment(action, {});
+    const response = await postPayment('confirm', {});
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: { status: 409, message: action === 'confirm'
-      ? 'Family payments must be confirmed through individual shares'
-      : 'Family payments must be skipped together with their shares' } });
+    expect(await response.json()).toEqual({ error: {
+      status: 409, message: 'Family payments must be confirmed through individual shares',
+    } });
     expect(mockClientQuery).toHaveBeenCalledTimes(6);
     expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each([undefined, {}])('skips a family parent and all pending shares with body %j', async (body) => {
+    transactionMembership('owner', 'family');
+    const shares = [
+      { id: '1c3ad21c-9005-4bd8-a515-d09265748adb', status: 'pending' },
+      { id: 'b07ce15b-7a66-4797-b4d5-99ccb8ffcab0', status: 'pending' },
+    ];
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [paymentRow] })
+      .mockResolvedValueOnce({ rows: shares })
+      .mockResolvedValueOnce({ rows: [], rowCount: shares.length })
+      .mockResolvedValueOnce({ rows: [{
+        ...paymentRow, status: 'skipped', actual_amount: null, price_changed: false,
+        resolved_at: new Date('2026-10-26T12:00:00.000Z'),
+      }] });
+
+    const response = await postPayment('skip', body);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ payment: {
+      id: paymentRow.id, status: 'skipped', actualAmount: null, priceChanged: false,
+      resolvedAt: '2026-10-26T12:00:00.000Z',
+    } });
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockClientQuery).toHaveBeenNthCalledWith(5,
+      expect.stringContaining('FOR UPDATE OF p'), [groupId, paymentRow.id]);
+    expect(mockClientQuery).toHaveBeenNthCalledWith(6,
+      expect.stringMatching(/WHERE s\.group_id = \$1 AND p\.id = \$2[\s\S]*ORDER BY ps\.id[\s\S]*FOR UPDATE OF ps/),
+      [groupId, paymentRow.id]);
+    expect(mockClientQuery).toHaveBeenNthCalledWith(7,
+      expect.stringContaining("SET status = 'skipped', actual_amount = NULL, confirmed_at = NULL"), [groupId, paymentRow.id]);
+    expect(mockClientQuery).toHaveBeenNthCalledWith(8,
+      expect.stringContaining("SET status = 'skipped', actual_amount = NULL"), [groupId, paymentRow.id]);
+    expect(mockClientQuery).toHaveBeenCalledTimes(9);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('COMMIT');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('rejects skipping a family payment with no shares without writing', async () => {
+    transactionMembership('owner', 'family');
+    mockClientQuery.mockResolvedValueOnce({ rows: [paymentRow] });
+
+    const response = await postPayment('skip', {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: { status: 409, message: 'Family payment has no shares' } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(7);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(['confirmed', 'skipped'] as const)('preserves a pending family payment containing a %s share', async (status) => {
+    transactionMembership('owner', 'family');
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [paymentRow] })
+      .mockResolvedValueOnce({ rows: [
+        { id: '1c3ad21c-9005-4bd8-a515-d09265748adb', status: 'pending' },
+        { id: 'b07ce15b-7a66-4797-b4d5-99ccb8ffcab0', status },
+      ] });
+
+    const response = await postPayment('skip', {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: {
+      status: 409, message: 'Family payments can only be skipped while all shares are pending',
+    } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(7);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(['confirmed', 'skipped'] as const)('rejects family skip for an already %s parent before reading shares', async (status) => {
+    transactionMembership('owner', 'family');
+    mockClientQuery.mockResolvedValueOnce({ rows: [{ ...paymentRow, status }] });
+
+    const response = await postPayment('skip', {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: { status: 409, message: 'Payment already resolved' } });
+    expect(mockClientQuery).toHaveBeenCalledTimes(6);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it('denies family skip to a member before reading the parent or shares', async () => {
+    transactionMembership('member', 'family');
+
+    const response = await postPayment('skip', {});
+    expect(response.status).toBe(403);
+    expect(mockClientQuery).toHaveBeenCalledTimes(5);
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
+  it.each(['shares', 'parent', 'commit'] as const)('rolls back family skip when updating %s fails', async (failureAt) => {
+    transactionMembership('owner', 'family');
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [paymentRow] })
+      .mockResolvedValueOnce({ rows: [{ id: '1c3ad21c-9005-4bd8-a515-d09265748adb', status: 'pending' }] });
+    if (failureAt !== 'shares') mockClientQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    if (failureAt === 'commit') mockClientQuery.mockResolvedValueOnce({ rows: [{ ...paymentRow, status: 'skipped' }] });
+    mockClientQuery.mockRejectedValueOnce(new Error(`Family skip ${failureAt} failed`));
+
+    const response = await postPayment('skip', {});
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: { status: 500, message: `Family skip ${failureAt} failed` } });
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockRelease).toHaveBeenCalledOnce();
   });
 

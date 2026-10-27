@@ -7,6 +7,8 @@ const sensitiveKeys = new Set([
   'accesstoken', 'refreshtoken', 'jwt', 'authorization', 'cookie', 'cookies',
   'secret', 'jwtaccesssecret', 'jwtrefreshsecret', 'database_url', 'databaseurl',
   'connectionstring', 'cardnumber', 'pan', 'cvv', 'cvc', 'card', 'creditcard',
+  'token_hash', 'tokenhash', 'invitation_token', 'invitationtoken',
+  'invitation_code', 'invitationcode',
 ]);
 
 export const sanitizeMeta = (value: unknown): unknown => {

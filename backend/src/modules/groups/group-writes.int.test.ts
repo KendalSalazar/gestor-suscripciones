@@ -218,7 +218,7 @@ describeWithDatabase('group writes and permission changes with PostgreSQL', () =
   ] as const;
 
   describe.each(['no shares', 'pending shares', 'partially confirmed shares'] as const)('family parent with %s', (state) => {
-    it.each(resolutions)('rejects direct %s without modifying the parent or its shares', async (_operation, resolve) => {
+    it.each(resolutions)('enforces the family rule for %s', async (operation, resolve) => {
       const fixture = await createFixture();
       if (state !== 'no shares') {
         const partial = state === 'partially confirmed shares';
@@ -233,8 +233,20 @@ describeWithDatabase('group writes and permission changes with PostgreSQL', () =
         );
       }
       const before = await snapshot(fixture);
-      await expect(resolve(fixture.ownerId, fixture.groupId, fixture.paymentId)).rejects.toMatchObject({ status: 409 });
-      expect(await snapshot(fixture)).toBe(before);
+      if (state === 'pending shares' && operation === 'skip') {
+        const result = await resolve(fixture.ownerId, fixture.groupId, fixture.paymentId);
+        expect(result).toMatchObject({ status: 'skipped', actualAmount: null, priceChanged: false });
+        expect(result.resolvedAt).not.toBeNull();
+        const shares = await database.query(
+          'SELECT status, actual_amount, confirmed_at FROM payment_shares WHERE payment_id = $1',
+          [fixture.paymentId],
+        );
+        expect(shares.rows).toHaveLength(2);
+        expect(shares.rows.every((row) => row.status === 'skipped' && row.actual_amount === null && row.confirmed_at === null)).toBe(true);
+      } else {
+        await expect(resolve(fixture.ownerId, fixture.groupId, fixture.paymentId)).rejects.toMatchObject({ status: 409 });
+        expect(await snapshot(fixture)).toBe(before);
+      }
     });
   });
 

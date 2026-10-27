@@ -28,10 +28,12 @@ de 2026 con restricciones, migración, procesos reales y documentación contrast
 consultar [el informe de cierre](../../backend/docs/phase-4-verification.md).
 Antes de implementar esta fase, comprobar que ese estado siga vigente. No convertir
 casillas en aprobadas por inferencia ni repetir verificaciones válidas sin motivo.
-Los bloques 1 a 6 están completados: revisión, datos de grupos e invitaciones,
-datos de partes, reparto puro, escrituras coordinadas y generación familiar.
-La lectura y resolución de partes, las nuevas rutas de grupos e invitaciones
-y la interfaz familiar siguen pendientes.
+Los bloques 1 a 13 están completados: revisión, datos de grupos e invitaciones,
+datos de partes, reparto puro, escrituras coordinadas, generación familiar,
+lectura de partes, confirmación propia, omisión familiar, API inicial de grupos,
+listado de miembros, transferencia de ownership, salida y expulsión, y operaciones
+de invitación del owner. La resolución por el destinatario y la interfaz familiar
+siguen pendientes.
 
 Las reglas existentes siguen vigentes: SQL parametrizado, Zod strict, errores
 `{ error: { message, status } }`, dinero como strings, DATE `YYYY-MM-DD`, access
@@ -178,8 +180,8 @@ la casilla de foto e historial permanecía pendiente. El bloque 5 estaba pendien
   usan un cliente desde BEGIN hasta COMMIT/ROLLBACK: membresía inicial, bloqueo de
   grupo, nueva lectura de membresía y assertOwner antes de escribir. Liberación
   del cliente incluso ante fallos; lecturas, ancla, strings, fechas y DELETE 409 conservados.
-- [x] Grupo antes de pago en resolución. Una vez localizado el pago dentro del
-  grupo autorizado, confirm y skip familiares devuelven 409 sin modificar padre
+- [x] Grupo antes de pago en resolución. Al cerrar esa entrega, una vez localizado
+  el pago dentro del grupo autorizado, confirm y skip familiares devolvían 409 sin modificar padre
   ni partes. Membresía/rol inválidos siguen dando 403; pago ausente o ajeno dentro
   del grupo autorizado da 404 antes de la guarda. Personal conserva su resolución.
 - [x] Suites de suscripciones y HTTP de pagos: 41 y 54 pruebas aprobadas,
@@ -201,10 +203,9 @@ la casilla de foto e historial permanecía pendiente. El bloque 5 estaba pendien
 
 Las transferencias de las pruebas se simulan con SQL limitado a fixtures; no hay
 API de transferencia nueva. Al cerrar ese bloque, el generador conservaba la lógica
-de Fase 4 y su adaptación estaba pendiente del bloque 6. Confirmar el padre familiar
-permanece prohibido; skip familiar
-sigue bloqueado hasta implementar el conjunto atómico del bloque 9. Esa entrega
-no adelantó otros bloques ni la creación de familias por HTTP.
+de Fase 4 y su adaptación estaba pendiente del bloque 6. La confirmación directa
+del padre familiar permanece prohibida; la omisión quedó bloqueada hasta el bloque 9.
+Esa entrega no adelantó otros bloques ni la creación de familias por HTTP.
 
 ### Bloque 6 — Generación familiar comprobada (25 de octubre de 2026)
 
@@ -243,9 +244,290 @@ no adelantó otros bloques ni la creación de familias por HTTP.
   unitarios e integración sin hallazgos pendientes.
 
 Se completó la comprobación limitada a UUID mediante llamadas reales al servicio;
-no se presenta como una prueba manual del CLI. Las guardas familiares del bloque 5
-siguen activas. No hay rutas de partes nuevas: su lectura corresponde al bloque 7,
-la confirmación al 8 y la omisión al 9; no se han adelantado esos bloques.
+no se presenta como una prueba manual del CLI. Al cerrar esa entrega no había
+rutas de partes nuevas: la lectura quedó para el bloque 7, la confirmación para
+el 8 y la omisión para el 9. Al cerrar ese bloque seguían activas las guardas
+familiares del bloque 5.
+
+### Bloque 7 — Lectura de partes comprobada (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; árbol Git limpio al comenzar desde
+  `63731ea`. Inspección previa de PostgreSQL 16.15, `subscripciones_db/public`,
+  con migraciones 001–008 y los datos de cierre del bloque anterior conservados.
+- [x] Nuevos tipos, schemas, servicio, controlador y router de partes en
+  modules/payments/payment-share.*. Montaje autenticado en app.ts y ruta de
+  desglose dentro del router de pagos, con mergeParams y validación strict.
+- [x] GET /groups/:groupId/payment-shares devuelve únicamente partes de la cuenta
+  autenticada, con status opcional, hasta cien por fecha del pago DESC e id de
+  parte DESC. Cada una incluye payment y summary; las suscripciones inactivas
+  conservan su historial y un miembro sin partes recibe shares vacío.
+- [x] GET /groups/:groupId/payments/:paymentId/shares devuelve el pago, la foto
+  completa ordenada por userId y su resumen. Incluye participantes históricos
+  removed; un caller activo recién incorporado puede leer aunque no tenga cuota.
+  Pago existente sin partes devuelve 200 con shares vacío y resumen cero.
+- [x] Membresía activa de owner/member antes de consultar; personal autorizado 409,
+  grupo ajeno/inexistente/invited/removed 403 y pago ausente/ajeno dentro del grupo
+  autorizado 404. Consultas parametrizadas delimitadas por subscription.group_id
+  y, en listado propio, user_id autenticado; no se admite elegir usuario por query.
+- [x] Un SELECT de recursos obtiene padre, partes y resumen con LATERAL. COUNT
+  devuelve enteros y SUM NUMERIC devuelve strings sobre todas las partes del pago,
+  sin contaminarse por filtros propios o de estado. confirmedAmount cero es 0.00;
+  DTOs explícitos conservan dinero, DATE y timestamps, sin emails ni datos de sesión.
+- [x] [Pruebas HTTP](../../backend/src/modules/payments/payment-share.routes.test.ts):
+  treinta aprobadas con servicio simulado, cubriendo Bearer, montaje, parámetros,
+  filtros strict, contratos, errores y ausencia de mutaciones del bloque siguiente.
+- [x] [Integración de lecturas](../../backend/src/modules/payments/payment-share-read.int.test.ts):
+  trece pruebas PostgreSQL/HTTP reales aprobadas con UUID exclusivos. Cubren roles,
+  históricos, cero partes, filtros, errores, 0.10 + 0.20 = 0.30, resumen independiente
+  del caller/status y límite/orden de cien resultados con 101 partes nuevas.
+  Ambos GET y regresión de health, pagos y suscripciones personales comprobados.
+- [x] Suite completa con RUN_DB_TESTS=1: 445 aprobadas en 21 archivos. Sin el flag:
+  264 aprobadas y 181 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Fixtures eliminadas y ausencia comprobada; servidor HTTP temporal y pool
+  cerrados. Conteos existentes conservados: diez usuarios, grupos y membresías,
+  una suscripción, cero pagos, partes e invitaciones, ocho migraciones. Sin
+  migraciones nuevas, generación global ni servidor normal.
+- [x] [Contrato de lectura documentado](../../backend/docs/payment-shares.md), con
+  enlace desde pagos. Revisión independiente sin hallazgos pendientes.
+
+Las lecturas no adquieren FOR UPDATE ni escriben datos. Al cerrar ese bloque,
+la confirmación propia del 8, la omisión del 9 y la interfaz quedaron pendientes.
+Al cerrar ese bloque, ambas operaciones seguían bloqueadas; la confirmación
+directa del padre familiar permanece prohibida.
+
+### Bloque 8 — Confirmación propia comprobada (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios pendientes
+  del bloque 7. Inspección previa de PostgreSQL 16.15, `subscripciones_db/public`,
+  migraciones 001–008 y conteos de datos habituales conservados.
+- [x] POST /groups/:groupId/payments/:paymentId/shares/:shareId/confirm montado
+  detrás de Bearer, con UUID strict, query vacía y body estricto. `{}` usa la
+  cuota prevista; actualAmount opcional es decimal string dentro del rango de
+  Fase 4. El nuevo schema rechaza también whitespace final, incluido newline,
+  sin modificar el schema de pagos personales.
+- [x] Servicio confirmPaymentShare con cliente único: membresía inicial, grupo
+  bloqueado y membresía revalidada, padre y parte bloqueados dentro del grupo.
+  No exige owner; solo el titular activo puede confirmar. Parte ajena da 403
+  incluso al owner y antes de comprobar estados; IDs incompatibles dan 404.
+  Grupo personal autorizado, padre o parte resueltos dan 409.
+- [x] SUM NUMERIC de confirmados más el importe nuevo se compara con 9999999999.99
+  antes de cada UPDATE, incluso sin ser la última parte. Exceso da 409 sin cambios.
+  La parte confirmada conserva su cuota prevista, registra actualAmount y confirmedAt.
+- [x] Padre parcial conserva pending, actualAmount/resolvedAt nulos y priceChanged
+  falso. Cierra solo con N > 0 y todas las partes confirmed, con suma real exacta,
+  resolvedAt y comparación NUMERIC contra expectedAmount. Partes skipped impiden
+  un cierre por el mero hecho de no quedar pending. El coste de suscripción no cambia.
+- [x] Respuesta `{ share, payment, summary }` construida leyendo las escrituras
+  mediante el mismo cliente antes del commit; rollback y liberación ante fallos.
+  GET y guardas de confirm/skip directo familiar conservados; no se añadió omisión.
+- [x] [Pruebas HTTP de confirmación](../../backend/src/modules/payments/payment-share-confirm.routes.test.ts):
+  47 aprobadas con servicio simulado; las treinta pruebas de lectura siguen pasando.
+  Cubren identidad, parámetros/body/query, decimales, espacios, respuesta y errores.
+- [x] [Integración de confirmación](../../backend/src/modules/payments/payment-share-confirm.int.test.ts):
+  25 pruebas PostgreSQL/HTTP reales en esquema exclusivo, sin SQL simulado. Incluyen
+  defaults, corregidos, cero, parcial y cierre, 0.10 + 0.20 = 0.30, permisos,
+  scoping, estados, acumulado no final y concurrente, máximo más ceros, misma parte
+  HTTP 200/409 y dos últimas partes distintas cerrando una sola vez.
+- [x] Esperas reales observadas con pg_blocking_pids: una baja da 403 tras esperar;
+  un owner que pasa a member activo conserva su confirmación propia. Fallo de UPDATE
+  del padre mediante CHECK solo local demuestra rollback de la parte; NOWAIT de
+  grupo/padre/parte y reintento comprueban liberación. Respuesta HTTP coincide con GET
+  posterior al commit. Las transferencias o bajas son SQL de fixture, sin nuevas API.
+- [x] Suite completa con RUN_DB_TESTS=1: 517 aprobadas en 23 archivos. Sin el flag:
+  311 aprobadas y 206 omitidas. Flag restaurado; typecheck y build correctos.
+- [x] Servidor temporal y pools cerrados; esquema exclusivo eliminado y ausencia
+  comprobada. Conteos de public conservados: diez usuarios, grupos y membresías,
+  una suscripción y cero pagos, partes e invitaciones, con ocho migraciones.
+  No se aplicaron migraciones ni se ejecutó generación global o servidor normal.
+- [x] Contratos de partes y pagos actualizados; revisión independiente sin hallazgos.
+
+Al cerrar esa entrega, la confirmación propia estaba disponible y la omisión del
+conjunto quedaba para el bloque 9. Las rutas de grupos/invitaciones y el frontend
+quedan para sus bloques correspondientes, sin anticipar otras funciones.
+
+### Bloque 9 — Omisión familiar comprobada (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  PostgreSQL 16.15, `subscripciones_db/public`, con migraciones 001–008 y los
+  conteos existentes inspeccionados antes y después de las pruebas.
+- [x] La omisión del padre familiar exige owner activo, pago pendiente y al menos
+  una parte, todas pendientes. Bloquea grupo, pago y partes; actualiza el conjunto
+  en una transacción y conserva los importes y porcentajes de la foto. La
+  confirmación directa del padre sigue prohibida y el pago personal conserva su comportamiento.
+- [x] Las 64 pruebas HTTP del módulo de pagos pasaron. Las 18 pruebas nuevas de
+  [integración](../../backend/src/modules/payments/payment-family-skip.int.test.ts)
+  comprobaron PostgreSQL y HTTP reales, permisos, conflictos, aislamiento,
+  concurrencia, revalidación tras espera y rollback con liberación de bloqueos.
+- [x] Suite completa con `RUN_DB_TESTS=1`: 545 pruebas aprobadas en 24 archivos.
+  Sin el flag: 321 aprobadas y 224 omitidas. Variable restaurada; typecheck y build correctos.
+- [x] Esquemas temporales eliminados y conteos existentes conservados. No se
+  aplicaron migraciones ni se ejecutó generación global o servidor normal.
+- [x] Contratos de [pagos](../../backend/docs/payments.md) y
+  [partes](../../backend/docs/payment-shares.md) actualizados.
+
+### Bloque 10 — API de grupos comprobada (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  Inspección de PostgreSQL 16.15, `subscripciones_db/public`: migraciones 001–008,
+  diez usuarios, grupos y membresías, una suscripción y cero pagos, partes e invitaciones.
+- [x] [Módulo de grupos](../../backend/src/modules/groups/group.service.ts) con
+  tipos públicos, mapper de fila SQL, schemas strict, controlador y router.
+  GET `/groups` devuelve todos los grupos propios con membresía activa, personal
+  primero y luego createdAt/id ascendentes; incluye rol actual y no expone emails.
+- [x] POST `/groups` crea solo family y su membresía owner/active en una transacción.
+  PATCH `/groups/:groupId` cambia solo el nombre, bloquea el grupo y revalida el
+  rol antes de escribir; personal autorizado recibe 409 y falta de permiso 403 uniforme.
+  Nombres recortados de 1 a 255 caracteres; type y owner no son entradas editables.
+- [x] Montaje en `app.ts` detrás de requireAuth y antes de notFound, conservando
+  las rutas anidadas de suscripciones, pagos y partes.
+- [x] Las 61 [pruebas HTTP con pool simulado](../../backend/src/modules/groups/group.routes.test.ts)
+  comprobaron validación, serialización, permisos, cliente único y errores.
+  Las 14 [pruebas PostgreSQL/HTTP](../../backend/src/modules/groups/group-api.int.test.ts)
+  comprobaron creación atómica, listado y orden, renombrado, aislamiento y
+  regresión personal. Incluyen rollback al fallar membresía o renombrado,
+  liberación de bloqueo con NOWAIT y revalidación tras democión/baja observando
+  la espera real con pg_blocking_pids. Los cambios de rol son SQL de fixture,
+  sin adelantar endpoints de transferencia o salida.
+- [x] Suite completa con `RUN_DB_TESTS=1`: 620 pruebas aprobadas en 26 archivos.
+  Sin el flag: 382 aprobadas y 238 omitidas. Variable restaurada; typecheck y build correctos.
+- [x] Servidor temporal y pools cerrados, esquemas exclusivos eliminados y ausencia
+  comprobada; conteos existentes y ocho migraciones conservados. No se aplicaron
+  migraciones ni se ejecutó generación global o servidor normal.
+- [x] Contrato y pasos de comprobación manual en [groups.md](../../backend/docs/groups.md).
+  La evidencia de esta entrega es automatizada; la prueba manual del propietario
+  y la interfaz familiar quedan para sus puntos de comprobación correspondientes.
+- [x] Revisión independiente de módulo, montaje, pruebas y documentación cerrada
+  sin hallazgos pendientes.
+
+La API inicial permite crear familias, listarlas y renombrarlas. Al cerrar esa
+entrega, miembros y ownership quedaron para el bloque 11; salida, invitaciones
+y frontend permanecían pendientes.
+
+### Bloque 11 — Miembros y ownership comprobados (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  PostgreSQL 16.15, `subscripciones_db/public`, con migraciones 001–008 y conteos
+  existentes inspeccionados antes y después. Sin owners incoherentes o inactivos.
+- [x] GET `/groups/:groupId/members` para miembros activos familiares: DTO con
+  userId, name, role, status y joinedAt ISO, sin emails; solo activos, owner primero,
+  después UUID ascendente y máximo 20. Params, query y body strict.
+- [x] POST `/groups/:groupId/transfer-ownership` con UUID `newOwnerId`: owner
+  revalidado después del bloqueo de grupo y destinatario distinto, member activo
+  del mismo grupo, bloqueado antes de modificar. Democión, promoción y owner_id
+  se actualizan juntos, en ese orden, comprobando el resultado de cada escritura.
+  El solicitante recibe `{ group }` con su nuevo rol member. Personal autorizado
+  devuelve 409; membresía/rol inválidos o grupo ajeno/inexistente conservan 403 uniforme.
+- [x] [Servicio de miembros](../../backend/src/modules/groups/group-member.service.ts)
+  separado del servicio de grupos. Conserva joined_at, estados, grupos personales,
+  suscripciones, pagos, cuotas y confirmaciones históricas; no introduce bajas o invitaciones.
+- [x] Las 53 [pruebas HTTP con pool simulado](../../backend/src/modules/groups/group-member.routes.test.ts)
+  comprobaron contratos, permisos, filtros SQL, orden de escrituras, guardas de
+  filas modificadas, commit/rollback, liberación del cliente y errores originales.
+- [x] Las 20 [pruebas PostgreSQL/HTTP](../../backend/src/modules/groups/group-member.int.test.ts)
+  comprobaron dos sesiones, permisos posteriores, owner único coincidente,
+  conservación exacta de roles/datos no afectados e historial parcialmente confirmado.
+  Fallos inducidos en promoción y owner_id revierten todo, liberan bloqueos (NOWAIT)
+  y permiten reintento. Dos transferencias concurrentes producen 200/403.
+  Una transferencia real bloqueada en el destinatario retiene el grupo y provoca
+  que un renombrado antiguo en espera revalide y reciba 403; ambas esperas se
+  observaron mediante pg_blocking_pids. Un destino retirado mientras se espera
+  el grupo produce 409 sin cambios parciales.
+- [x] Suite completa con `RUN_DB_TESTS=1`: 693 pruebas aprobadas en 28 archivos.
+  Sin el flag: 435 aprobadas y 258 omitidas. Variable restaurada; typecheck y build correctos.
+- [x] Servidor y pools de prueba cerrados, esquema exclusivo eliminado y ausencia
+  comprobada. Public conserva diez usuarios, grupos y membresías, una suscripción,
+  cero pagos/partes/invitaciones y ocho migraciones, con ownership coherente.
+  No se aplicaron migraciones a public ni se ejecutó generación global o servidor normal.
+- [x] Contrato y recorrido de dos cuentas documentados en [groups.md](../../backend/docs/groups.md).
+  Las membresías iniciales y la baja concurrente son SQL limitado a fixtures;
+  la evidencia de dos cuentas es automatizada con HTTP y PostgreSQL reales.
+  La prueba manual del propietario no se presenta como ejecutada.
+- [x] Revisión independiente de producto, pruebas y documentación cerrada sin
+  hallazgos pendientes.
+
+Al cerrar esa entrega, la salida y expulsión quedaron para el bloque 12;
+invitaciones y frontend permanecían pendientes.
+
+### Bloque 12 — Salida y expulsión comprobadas (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coincidentes; conservados los cambios anteriores.
+  PostgreSQL 16.15, `subscripciones_db/public`, con migraciones 001–008 y conteos
+  inspeccionados antes y después; ownership coherente tras las pruebas.
+- [x] POST `/groups/:groupId/leave` y DELETE `/groups/:groupId/members/:userId`
+  devuelven 204 sin cuerpo, con params, query y body estrictos. Solo el owner
+  activo puede retirar a otra persona; el owner no puede salir ni retirarse.
+  Una membresía destino inexistente o no activa da 404 al owner autorizado.
+- [x] [Servicio de miembros](../../backend/src/modules/groups/group-member.service.ts)
+  comparte la baja lógica: autorización y revalidación tras bloqueo de grupo,
+  bloqueo del miembro y comprobación de partes pending de pagos pending del
+  mismo grupo y usuario. Una obligación propia pendiente da 409; las partes
+  confirmadas, obligaciones ajenas y las de otros grupos no bloquean la baja.
+- [x] Solo cambia `group_members.status` a removed. Se preservan rol, joined_at,
+  suscripciones, pagos, partes y su historial; el usuario retirado pierde acceso
+  al grupo y los miembros activos conservan la lectura histórica.
+- [x] Las 62 [pruebas HTTP con pool simulado](../../backend/src/modules/groups/group-member-removal.routes.test.ts)
+  comprobaron validación, permisos, owner, scope, obligaciones, errores,
+  rollback y liberación del cliente. Las 25 [pruebas PostgreSQL/HTTP](../../backend/src/modules/groups/group-member-removal.int.test.ts)
+  comprobaron también estado e historial exactos, pérdida de acceso, conflictos,
+  dos fallos con rollback y NOWAIT, y revalidación de permisos tras la espera.
+- [x] Cuatro carreras reales cubrieron salida y expulsión frente a generación,
+  limitada al UUID de la suscripción de fixture. Con la baja reteniendo primero
+  el grupo, SKIP LOCKED deja la suscripción sin procesar y el reintento crea partes
+  solo para los miembros restantes. Si el generador retiene primero el grupo,
+  crea la foto completa y la baja posterior recibe 409 por la nueva parte pendiente.
+  Las esperas relevantes se observaron con pg_blocking_pids.
+- [x] Suite completa con `RUN_DB_TESTS=1`: 780 pruebas aprobadas en 30 archivos.
+  Sin el flag: 497 aprobadas y 283 omitidas. Variable restaurada; typecheck y build correctos.
+- [x] Servidor y pools de prueba cerrados, esquemas exclusivos eliminados y ausencia
+  comprobada. Public conserva diez usuarios, grupos y membresías, una suscripción,
+  cero pagos/partes/invitaciones y ocho migraciones. No se aplicaron migraciones
+  a public ni se ejecutó generación global o servidor normal.
+- [x] Contrato y comprobación manual documentados en [groups.md](../../backend/docs/groups.md).
+  La incorporación de miembros de prueba se preparó con SQL en un esquema temporal;
+  la prueba manual del propietario no se presenta como ejecutada.
+- [x] Revisión independiente de producto, pruebas y documentación cerrada sin
+  hallazgos pendientes.
+
+La resolución de invitaciones por el destinatario y el frontend siguen pendientes;
+la Fase 5 continúa en desarrollo.
+
+### Bloque 13 — Operaciones de invitación del owner comprobadas (26 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo verificadas como `E:\repos vsc\gestor-suscripciones`;
+  se conservaron los cambios previos. Inspección de PostgreSQL 16.15 y del
+  esquema `public` antes y después; sin migración nueva ni cambios a datos reales.
+- [x] `POST /groups/:groupId/invitations` exige owner activo y grupo familiar,
+  normaliza el email y rechaza self/member/duplicado. Genera 32 bytes aleatorios,
+  devuelve el token solo en la creación y guarda únicamente SHA-256, con vigencia
+  de siete días. No busca cuentas globalmente ni envía correo.
+- [x] `GET /groups/:groupId/invitations` lista las últimas 100 del grupo, conserva
+  las creadas por owners anteriores y presenta vencidas sin escribir. `POST .../revoke`
+  solo revoca pending vigente; ausencia o grupo ajeno responde `404`, estado
+  existente no revocable `409`.
+- [x] Las escrituras bloquean el grupo y revalidan el owner. Comparaciones y
+  timestamps usan `statement_timestamp()` tras obtener el bloqueo; creación fija
+  `created_at` y `expires_at` juntos. Se cubrió la carrera en que la invitación
+  vence durante la espera, evitando revocarla con el `NOW()` fijado al comenzar
+  la transacción.
+- [x] El logger redacta recursivamente token/hash/código de invitación. Errores
+  SQL y de conexión en estos servicios se convierten en error genérico seguro;
+  solo la colisión conocida del índice de pending se mapea a `409`.
+- [x] 101 pruebas HTTP unitarias y 12 de redacción aprobadas. La integración
+  HTTP/PostgreSQL aislada aprobó sus 22 casos, incluidos vencimiento durante
+  bloqueo, 403/404/409, rollback y transferencia de ownership concurrente.
+  Revisión independiente cerrada sin hallazgos.
+- [x] Suite backend con PostgreSQL: 915 pruebas en 33 archivos. Sin
+  `RUN_DB_TESTS=1`: 610 aprobadas, 305 omitidas. Variable restaurada. Typecheck
+  y build correctos; el esquema temporal se eliminó y su ausencia se comprobó.
+- [x] `public` conserva 10 usuarios, 10 grupos, 10 membresías, cero invitaciones,
+  pagos y partes, ocho migraciones y cero esquemas `phase5_test_*`.
+- [x] Contrato actualizado en [groups.md](../../backend/docs/groups.md); sin
+  nuevos paquetes o migraciones. La vista previa/aceptación/rechazo del destinatario
+  permanece en el bloque 14; no se adelantó interfaz ni se envió correo.
+
+La API del owner ya permite preparar y administrar invitaciones mediante códigos
+manuales. La cuenta invitada todavía no puede validar ni resolver el código; ese
+ciclo corresponde al bloque 14.
 
 ## 1. Dominio y permisos
 
@@ -718,8 +1000,8 @@ en ejemplos ni leer .env; las herramientas de la aplicación cargan su configura
 - [ ] Un owner activo coherente; transferencia, bajas y límite de miembros atómicos.
 - [x] Reparto exacto, estable y capturado una vez; sin redistribución histórica.
 - [x] Generación, partes y avance de fecha juntos; grupos ocupados no consumen el cupo antes de SKIP LOCKED.
-- [ ] Solo se confirma la parte propia; padre familiar agregado y acumulado dentro de rango.
-- [ ] Skip global exclusivamente antes de confirmar partes; 409 preserva historia parcial.
+- [x] Solo se confirma la parte propia; padre familiar agregado y acumulado dentro de rango.
+- [x] Skip global exclusivamente antes de confirmar partes; 409 preserva historia parcial.
 - [ ] Invitaciones con secreto de un uso, caducidad, hash y destinatario actual comprobados.
 - [ ] Aceptación no enumera cuentas, no degrada owners y no depende de correo verificado ficticio.
 - [ ] Todos los endpoints limitados por grupo; roles revalidados después del bloqueo en escrituras.
