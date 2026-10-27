@@ -133,7 +133,7 @@ export async function confirmPaymentShare(
     await client.query('BEGIN');
     await getActiveMembership(userId, groupId, 'confirm_payment_share', client);
     const group = await lockGroupForWrite(client, groupId);
-    await getActiveMembership(userId, groupId, 'confirm_payment_share', client);
+    const membership = await getActiveMembership(userId, groupId, 'confirm_payment_share', client);
     if (group.type !== 'family') throw new AppError(409, 'Payment shares are only available for family groups');
 
     const selectedPayment = await client.query<ParentPaymentRow>(
@@ -164,16 +164,19 @@ export async function confirmPaymentShare(
     if (share.status !== 'pending') throw new AppError(409, 'Payment share already resolved');
 
     const amount = actualAmount ?? share.share_amount;
-    const capacity = await client.query<{ within_limit: boolean }>(
+    const capacity = await client.query<{ within_limit: boolean; within_share_limit: boolean }>(
       `SELECT (
          COALESCE(SUM(ps.actual_amount) FILTER (WHERE ps.status = 'confirmed'), 0.00)
          + $3::numeric <= 9999999999.99
-       ) AS within_limit
+       ) AS within_limit, ($3::numeric <= $4::numeric) AS within_share_limit
        FROM payment_shares ps
        JOIN payments p ON p.id = ps.payment_id
        JOIN subscriptions s ON s.id = p.subscription_id
-       WHERE s.group_id = $1 AND p.id = $2`, [groupId, paymentId, amount],
+       WHERE s.group_id = $1 AND p.id = $2`, [groupId, paymentId, amount, share.share_amount],
     );
+    if (membership.role === 'member' && !capacity.rows[0].within_share_limit) {
+      throw new AppError(409, 'Member amount cannot exceed the assigned share');
+    }
     if (!capacity.rows[0].within_limit) throw new AppError(409, 'Confirmed payment total would exceed the amount limit');
 
     const updatedShare = await client.query<PaymentShareRow>(

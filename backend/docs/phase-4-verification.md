@@ -118,6 +118,7 @@ try {
 Para la suite completa, usar `pnpm.cmd --dir backend test` con el mismo flag.
 Para observar el uso normal, arrancar el backend y seguir
 [la documentación de pagos](payments.md) y
-[el recorrido del dashboard](../../frontend/README.md#dashboard-personal--fase-4-bloque-8).
+[el dashboard](../../frontend/src/app/dashboard/page.tsx) con su
+[panel de pagos personales](../../frontend/src/app/dashboard/payments-panel.tsx).
 El uso normal del servidor procesa las suscripciones de la base configurada;
 las pruebas de cierre utilizaron fixtures o el esquema aislado.

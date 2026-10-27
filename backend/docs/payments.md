@@ -234,7 +234,7 @@ Una segunda señal no repite el cierre. En Windows, `Ctrl+C` permite comprobar
 el manejador de `SIGINT`; finalizar el proceso de forma forzada no garantiza
 que se ejecute este apagado ordenado.
 
-## Dashboard personal
+## Dashboard personal y familiar
 
 El dashboard permite consultar pendientes e historial con carga, vacío, error y
 reintento independientes del listado de suscripciones. Confirmar prellena el
@@ -246,7 +246,17 @@ se edita explícitamente para pagos futuros; los anteriores conservan su captura
 Ante DELETE con historial, la interfaz explica que se puede desactivar. Los tokens
 siguen en memoria y la cookie httpOnly permite recuperar sesión al recargar.
 
-Consultar [el recorrido y los archivos del frontend](../../frontend/README.md#dashboard-personal--fase-4-bloque-8).
+El dashboard conserva el panel personal y permite seleccionar un grupo activo.
+En familias muestra las partes propias pendientes e históricas, el progreso del
+pago y el reparto completo. Cada persona confirma su parte; el owner puede omitir
+el conjunto solo si todas las partes siguen pendientes. Las confirmaciones registran
+el control del pago en la aplicación: no procesan una transacción monetaria real.
+La vista familiar no crea una cuota retroactiva para quienes se incorporen después
+de generarse un pago. La comprobación manual owner/member permanece pendiente.
+
+Consultar [el dashboard](../../frontend/src/app/dashboard/page.tsx), el
+[panel de pagos personales](../../frontend/src/app/dashboard/payments-panel.tsx)
+y el [panel de partes familiares](../../frontend/src/app/dashboard/family-payments-panel.tsx).
 
 ## Comprobación
 

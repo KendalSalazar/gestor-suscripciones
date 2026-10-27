@@ -18,10 +18,10 @@ type Payment = {
 
 type PaymentsResponse = { payments: Payment[] };
 type PaymentResponse = { payment: Payment };
-type PaymentList = { payments: Payment[]; loading: boolean; error: string };
+type PaymentList = { payments: Payment[]; loading: boolean; error: string; refreshVersion: number };
 type ConfirmationForm = { paymentId: string; amount: string };
 
-const initialList: PaymentList = { payments: [], loading: true, error: '' };
+const initialList: PaymentList = { payments: [], loading: true, error: '', refreshVersion: -1 };
 
 function paymentErrorText(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
@@ -35,9 +35,11 @@ function paymentErrorText(error: unknown, fallback: string): string {
 export default function PaymentsPanel({
   groupId,
   onSessionExpired,
+  refreshVersion = 0,
 }: {
   groupId: string;
   onSessionExpired: () => void;
+  refreshVersion?: number;
 }) {
   const [pending, setPending] = useState<PaymentList>(initialList);
   const [history, setHistory] = useState<PaymentList>(initialList);
@@ -49,6 +51,8 @@ export default function PaymentsPanel({
   const [notice, setNotice] = useState('');
   const actionRequest = useRef<AbortController | null>(null);
   const basePath = `/groups/${groupId}/payments`;
+  const pendingLoading = pending.loading || pending.refreshVersion !== refreshVersion;
+  const historyLoading = history.loading || history.refreshVersion !== refreshVersion;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,7 +64,7 @@ export default function PaymentsPanel({
         });
         if (!result) throw new Error('Missing payments response');
         if (!controller.signal.aborted) {
-          setPending({ payments: result.payments, loading: false, error: '' });
+          setPending({ payments: result.payments, loading: false, error: '', refreshVersion });
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -71,6 +75,7 @@ export default function PaymentsPanel({
         setPending({
           payments: [],
           loading: false,
+          refreshVersion,
           error: paymentErrorText(error, 'No pudimos cargar los pagos pendientes. Inténtalo de nuevo.'),
         });
       }
@@ -78,7 +83,7 @@ export default function PaymentsPanel({
 
     void loadPending();
     return () => controller.abort();
-  }, [basePath, pendingReload, onSessionExpired]);
+  }, [basePath, pendingReload, onSessionExpired, refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,7 +103,7 @@ export default function PaymentsPanel({
           .slice(0, 100);
 
         if (!controller.signal.aborted) {
-          setHistory({ payments, loading: false, error: '' });
+          setHistory({ payments, loading: false, error: '', refreshVersion });
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -109,6 +114,7 @@ export default function PaymentsPanel({
         setHistory({
           payments: [],
           loading: false,
+          refreshVersion,
           error: paymentErrorText(error, 'No pudimos cargar el historial de pagos. Inténtalo de nuevo.'),
         });
       }
@@ -116,7 +122,7 @@ export default function PaymentsPanel({
 
     void loadHistory();
     return () => controller.abort();
-  }, [basePath, historyReload, onSessionExpired]);
+  }, [basePath, historyReload, onSessionExpired, refreshVersion]);
 
   useEffect(() => () => {
     actionRequest.current?.abort();
@@ -219,7 +225,7 @@ export default function PaymentsPanel({
             <h3 className="text-xl font-semibold text-slate-950" id="pending-payments-heading">Pagos pendientes</h3>
             <button
               className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              disabled={pending.loading || sendingId !== null}
+              disabled={pendingLoading || sendingId !== null}
               onClick={reloadPending}
               type="button"
             >
@@ -228,7 +234,7 @@ export default function PaymentsPanel({
           </div>
           <p className="mt-2 text-sm text-slate-500">Hasta 100 pendientes, por fecha de cobro más reciente.</p>
 
-          {pending.loading ? (
+          {pendingLoading ? (
             <p className="mt-6 text-sm text-slate-600" role="status">Cargando pagos pendientes…</p>
           ) : pending.error ? (
             <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{pending.error}</p>
@@ -333,7 +339,7 @@ export default function PaymentsPanel({
             <h3 className="text-xl font-semibold text-slate-950" id="payment-history-heading">Historial de pagos</h3>
             <button
               className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              disabled={history.loading || sendingId !== null}
+              disabled={historyLoading || sendingId !== null}
               onClick={reloadHistory}
               type="button"
             >
@@ -342,7 +348,7 @@ export default function PaymentsPanel({
           </div>
           <p className="mt-2 text-sm text-slate-500">Hasta 100 pagos resueltos, por fecha de cobro más reciente.</p>
 
-          {history.loading ? (
+          {historyLoading ? (
             <p className="mt-6 text-sm text-slate-600" role="status">Cargando historial de pagos…</p>
           ) : history.error ? (
             <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{history.error}</p>

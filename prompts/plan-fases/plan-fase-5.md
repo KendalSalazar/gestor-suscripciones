@@ -28,12 +28,18 @@ de 2026 con restricciones, migración, procesos reales y documentación contrast
 consultar [el informe de cierre](../../backend/docs/phase-4-verification.md).
 Antes de implementar esta fase, comprobar que ese estado siga vigente. No convertir
 casillas en aprobadas por inferencia ni repetir verificaciones válidas sin motivo.
-Los bloques 1 a 13 están completados: revisión, datos de grupos e invitaciones,
+Los bloques 1 a 20 tienen implementación y documentación contrastadas: revisión, datos de grupos e invitaciones,
 datos de partes, reparto puro, escrituras coordinadas, generación familiar,
 lectura de partes, confirmación propia, omisión familiar, API inicial de grupos,
 listado de miembros, transferencia de ownership, salida y expulsión, y operaciones
-de invitación del owner. La resolución por el destinatario y la interfaz familiar
-siguen pendientes.
+de invitación del owner y resolución por el destinatario, panel familiar de pagos
+y selección de grupo, gestión familiar e invitaciones visibles del owner y del
+destinatario. El propietario confirmó el 27 de octubre de 2026 que completó y
+comprobó correctamente el recorrido manual de Fase 5 con dos cuentas, incluidos
+invitaciones, permisos familiares, pagos parciales y las operaciones de miembros.
+Con esa validación, junto con las pruebas automatizadas y la compilación registradas
+en el bloque 20, la Fase 5 queda cerrada. Se añadió la navegación en tres vistas y
+la recarga al cambiar de vista, descritas después del bloque 20.
 
 Las reglas existentes siguen vigentes: SQL parametrizado, Zod strict, errores
 `{ error: { message, status } }`, dinero como strings, DATE `YYYY-MM-DD`, access
@@ -526,8 +532,218 @@ la Fase 5 continúa en desarrollo.
   permanece en el bloque 14; no se adelantó interfaz ni se envió correo.
 
 La API del owner ya permite preparar y administrar invitaciones mediante códigos
-manuales. La cuenta invitada todavía no puede validar ni resolver el código; ese
-ciclo corresponde al bloque 14.
+manuales. La API del destinatario ya verifica y resuelve el código. La gestión
+visual y la comprobación manual con el navegador quedan para sus bloques.
+
+### Bloque 14 — Resolución de invitaciones por el destinatario comprobada (27 de octubre de 2026)
+
+- [x] Raíz y carpeta de trabajo coinciden; se conservaron los cambios existentes.
+  Sin migración nueva: `group_invitations`, `group_members` y los índices actuales
+  cubren el flujo.
+- [x] Montadas rutas autenticadas `POST /invitations/:invitationId/preview`,
+  `/accept` y `/decline`. El body estricto lleva `{ token }`; el token no aparece
+  en URL, query, respuesta ni registro. UUID inválido/body/query adicional produce
+  `400`; Bearer ausente o inválido `401`.
+- [x] Consulta inicial limitada por UUID, SHA-256 del token y email actual de
+  `users`. Tras bloquear el grupo vuelve a verificar esos datos bloqueando la
+  invitación; código incorrecto, UUID inexistente y cuenta/email distinto comparten
+  `404 Invitation unavailable`. No se confía en el email del JWT.
+- [x] Preview devuelve el DTO autorizado sin mutar. Invitación vencida (incluso
+  si SQL aún conserva pending) o terminal produce `409`. Decline solo marca
+  declined/resolved_at y no crea membresía.
+- [x] Accept comprueba vigencia, familia y límite de 20 miembros dentro del bloqueo.
+  Inserta una membresía member activa o reactiva una fila member invited/removed;
+  una membresía ya activa produce `409` sin degradar owner/member. La membresía
+  y accepted/accepted_by/resolved_at se confirman juntas.
+- [x] Orden real de bloqueos: grupo → invitación → membresía. Dos aceptaciones del
+  mismo código solo confirman una; revocación previa, cambio de email durante
+  espera o caducidad invalidan resolución. Errores SQL se responden como `500`
+  genérico y las transacciones revierten.
+- [x] 37 pruebas HTTP con pool simulado aprobadas. Las 18 pruebas PostgreSQL/HTTP
+  aisladas aprobaron: email DB vs JWT, registro posterior, reactivación, cap20,
+  estados terminales, rechazo, concurrencia, revocación/email bajo espera y fallo
+  CHECK después de activar membership. El CHECK temporal verificó rollback de
+  ambas filas y liberación de locks con NOWAIT; constraint y esquema se eliminaron.
+- [x] Suite backend con PostgreSQL: 970 pruebas en 35 archivos. Sin el flag:
+  647 aprobadas y 323 omitidas. `RUN_DB_TESTS` restaurado; typecheck y build
+  correctos. Revisión independiente cerrada sin hallazgos.
+- [x] `public` conserva diez usuarios, grupos y membresías coherentes, cero
+  invitaciones/pagos/partes, ocho migraciones y cero esquemas `phase5_test_*`.
+- [x] Contrato de owner/destinatario y alcance pendiente actualizados en
+  [groups.md](../../backend/docs/groups.md). No se añadió email automático ni
+  interfaz; la verificación manual de dos cuentas en navegador queda pendiente.
+
+La API de invitación ahora completa los tres resultados de dominio: presentar la
+invitación sin consumirla, incorporarse a la familia o rechazarla. La pantalla
+protegida y el flujo manual de dos cuentas corresponden a los bloques visuales.
+
+### Bloque 15 — Panel de pagos familiares preparado (27 de octubre de 2026)
+
+- [x] Añadido `frontend/src/app/dashboard/family-payments-panel.tsx` como
+  componente independiente, todavía sin conectarlo al selector del dashboard.
+- [x] Carga partes propias pendientes e historial confirmado/omitido, el progreso
+  grupal y el reparto completo bajo demanda. Se distinguen el estado de la parte
+  personal y el del pago padre; los importes siguen siendo strings decimales.
+- [x] La lista de pagos grupales pendientes también muestra los pagos sin una
+  parte del usuario, por ejemplo si se incorporó después de generarlos. No inventa
+  una cuota retroactiva. El owner puede omitir el pago completo; un conflicto
+  parcial se explica y vuelve a cargar el estado.
+- [x] Añadidos estados separados de carga, vacío, error y reintento, cancelación
+  de lecturas obsoletas y renovación de sesión mediante `apiWithSession`.
+- [x] `pnpm.cmd --dir frontend lint` y
+  `pnpm.cmd --dir frontend exec tsc --noEmit` completados sin errores.
+- [x] En esta entrega aún no correspondía probarlo en navegador porque el panel
+  no estaba montado. La integración y validación posterior constan en los bloques
+  16 y 20.
+
+### Bloque 16 — Selección de grupo integrada en el dashboard (27 de octubre de 2026)
+
+- [x] `dashboard/page.tsx` carga los grupos activos mediante `GET /groups` y
+  conserva como selección inicial el `personalGroupId` de `/auth/me`. El listado
+  tiene carga, error y reintento independientes; si falla, el espacio personal
+  sigue disponible.
+- [x] Cambiar de espacio vuelve a cargar las suscripciones, cancela la lectura
+  anterior y muestra carga mientras los datos pertenecen a otro grupo. El cambio
+  limpia el formulario; cambiar de grupo durante una escritura está deshabilitado.
+- [x] En el grupo personal se conserva `PaymentsPanel`; en un grupo familiar se
+  monta `FamilyPaymentsPanel` con `key={groupId}` para reiniciar su estado. Los
+  miembros consultan suscripciones sin controles de escritura; el owner conserva
+  los permisos de administración existentes.
+- [x] `pnpm.cmd --dir frontend lint` y
+  `pnpm.cmd --dir frontend exec tsc --noEmit` completados sin errores.
+- [x] En esta ejecución el build no pudo descargar Geist/Geist Mono desde Google
+  Fonts; se completó correctamente en el bloque 20 al estar disponible la descarga.
+- [x] La revisión manual posterior quedó cubierta por el recorrido de dos cuentas
+  registrado al cerrar la fase en el bloque 20.
+
+### Bloque 17 — Gestión familiar visible implementada (27 de octubre de 2026)
+
+- [x] Añadido `frontend/src/app/dashboard/family-groups-panel.tsx`, integrado en
+  el dashboard. Permite crear una familia desde el espacio personal o familiar;
+  crearla conserva el grupo personal y selecciona la nueva familia.
+- [x] Para la familia seleccionada, el panel lista miembros activos sin exponer
+  emails, permite al owner cambiar el nombre y transferir ownership a otro miembro
+  activo, y permite a cualquier member salir. El owner puede retirar a otro member.
+- [x] Las acciones destructivas y la transferencia piden confirmación. La interfaz
+  explica que una parte propia pending impide salir y que la obligación pendiente
+  de la persona impide retirarla. La API mantiene la decisión final y responde con
+  errores comprensibles; no se borran pagos ni partes históricas.
+- [x] Después de crear, renombrar, transferir o salir, se actualiza el listado de
+  grupos y se refrescan los permisos. Un `403` también inicia ese refresco; mientras
+  se comprueba el rol, los paneles con acciones familiares se ocultan.
+- [x] `pnpm.cmd --dir frontend lint` y
+  `pnpm.cmd --dir frontend exec tsc --noEmit` completados sin errores.
+- [x] El propietario confirmó la comprobación manual en navegador de los
+  recorridos owner/member, transferencia, salida, expulsión y conflictos por
+  obligaciones pendientes; detalle de cierre en el bloque 20.
+
+### Bloque 18 — Invitaciones visibles del owner implementadas (27 de octubre de 2026)
+
+- [x] Añadido `frontend/src/app/dashboard/invitations-panel.tsx`, visible solo
+  para el owner de la familia seleccionada. Permite crear, listar estados y
+  revocar invitaciones pendientes.
+- [x] El email se normaliza en el cliente y el servidor mantiene la validación
+  final. La lista presenta destinatario, estado, creador y vencimiento; nunca incluye
+  token ni hash. Los conflictos se comunican sin consultar ni enumerar cuentas ajenas.
+- [x] El código `invitationId.token` se mantiene en memoria solo después de crear.
+  Copiarlo lo oculta; si falla el portapapeles queda visible para copiar manualmente.
+  También se puede ocultar descartándolo. Crear otra invitación queda deshabilitado
+  hasta resolver el código visible; cambiar de grupo desmonta el componente.
+- [x] `403` inicia actualización de grupos y permisos; el panel se desmonta mientras
+  se comprueba el rol. No se incluyen secretos en URL, query, logs ni storage.
+- [x] `pnpm.cmd --dir frontend lint` y
+  `pnpm.cmd --dir frontend exec tsc --noEmit` completados sin errores.
+- [x] El propietario confirmó la comprobación manual de invitaciones y permisos
+  con dos cuentas; detalle de cierre en el bloque 20.
+
+### Bloque 19 — Aceptación de invitaciones visible implementada (27 de octubre de 2026)
+
+- [x] Añadida `frontend/src/app/invitations/page.tsx`. La ruta comprueba la sesión,
+  acepta un código pegado en formato `UUID.token`, presenta la invitación para
+  revisión y permite aceptarla o rechazarla.
+- [x] El token solo permanece en estado React mientras se comprueba o resuelve la
+  invitación. No entra en URL, query, storage, navegación al login ni mensajes de
+  error. Si la sesión falta o vence, se pide iniciar sesión y pegarlo de nuevo.
+- [x] Errores `404` no revelan si falló el UUID, token o destinatario. El `409`
+  explica que la invitación pudo vencer/resolverse o que la familia alcanzó el
+  límite. Al aceptar, la página enlaza al dashboard, que vuelve a cargar `/groups`.
+- [x] `pnpm.cmd --dir frontend lint` y
+  `pnpm.cmd --dir frontend exec tsc --noEmit` completados sin errores.
+- [x] El propietario confirmó el flujo manual de dos cuentas, resolución de la
+  invitación y acceso al grupo incorporado; detalle de cierre en el bloque 20.
+
+### Bloque 20 — Documentación y cierre técnico contrastados (27 de octubre de 2026)
+
+- [x] Actualizados `backend/docs/groups.md`, `payment-shares.md` y `payments.md`;
+  creado `backend/docs/invitations.md` con contratos de owner/destinatario,
+  expiración, revocación y tratamiento del secreto.
+- [x] Suite backend con `RUN_DB_TESTS=1`: 970 aprobadas en 35 archivos; ninguna
+  omitida. El flag se restauró al terminar; los esquemas temporales de integración
+  se limpiaron.
+- [x] `pnpm.cmd --dir backend typecheck` y `pnpm.cmd --dir backend build` correctos.
+  `pnpm.cmd --dir frontend lint` y `pnpm.cmd --dir frontend exec tsc --noEmit`
+  correctos.
+- [x] `pnpm.cmd --dir frontend build` completó con éxito al permitir la descarga
+  de Geist y Geist Mono desde Google Fonts.
+- [x] El propietario confirmó el recorrido manual de navegador con dos cuentas:
+  invitación y acceso al grupo, permisos de owner/member, el límite de la cuota
+  para member y la excepción sobre su propia cuota para owner, pagos parciales,
+  historial, recarga de vistas y operaciones de miembros. La prueba headless
+  anterior había fallado al mostrar una parte; la validación manual posterior
+  resolvió esa incertidumbre.
+- [x] Fase 5 cerrada el 27 de octubre de 2026 tras la validación manual del
+  propietario, 978 pruebas backend con PostgreSQL, typecheck/build del backend y
+  lint/typecheck/build del frontend. Las pruebas de interfaz simuladas quedan como
+  comprobación complementaria; el recorrido de dos cuentas fue real.
+
+### Ajuste solicitado — Navegación del dashboard en tres vistas
+
+- Separados los contenidos de `dashboard/page.tsx` en Suscripciones, Pagos y Familia.
+  El selector de espacio permanece común; al cambiar de grupo se conserva la vista
+  elegida y se mantienen las keys y cancelaciones de los paneles existentes.
+- Suscripciones es la vista inicial. El formulario de alta solo aparece para
+  usuarios con permiso de escritura; miembros consultan una única lista.
+- Pagos muestra el panel personal o familiar según el espacio. Familia reúne
+  gestión de grupos, miembros e invitaciones; estas últimas siguen siendo de owner.
+- La navegación usa botones con estado `aria-pressed` y regiones identificadas.
+  `hidden` mantiene los paneles montados para conservar formularios y operaciones
+  al alternar vistas. La vista vuelve a Suscripciones al recargar.
+- Chrome con respuestas API simuladas comprobó: una sola vista visible, navegación
+  Tab/Enter, conservación del borrador, cambio personal/familia, presentación de
+  owner/member y ancho de 375 px sin desbordamiento. No hubo escrituras en PostgreSQL.
+  Esta prueba de presentación no acredita operaciones reales ni cierra la fase.
+- Lint, TypeScript y build de producción del frontend aprobados tras el ajuste.
+
+### Ajuste solicitado — Límite del miembro y recarga de vistas
+
+- Decisión del propietario: un member activo puede confirmar entre cero y su cuota
+  capturada, inclusive. Un owner activo puede superar únicamente su propia cuota,
+  dentro del máximo individual y acumulado existentes. El rol se revalida después
+  de bloquear el grupo y el SQL compara NUMERIC; un exceso del miembro devuelve
+  `409 Member amount cannot exceed the assigned share` sin modificar filas.
+- El formulario replica el límite por rol, compara centavos con BigInt y explica
+  el máximo. El 409 de cuota conserva el importe escrito y muestra un error concreto.
+  No se modificaron las confirmaciones históricas ni se añadió una migración.
+- Entrar a Suscripciones, Pagos o Familia vuelve a consultar datos y membresías,
+  también al pulsar la vista actual. Los paneles conservan borradores del mismo
+  grupo y permisos; cada respuesta se asocia a la versión de recarga para mostrar
+  carga hasta que llegue el resultado vigente. Cambios de rol/owner desmontan los
+  controles anteriores. Navegación pausada durante escrituras de suscripciones o
+  gestión de grupos para evitar que lecturas anteriores sobrescriban el resultado.
+- Backend: 978 pruebas PostgreSQL en 35 archivos, typecheck y build aprobados;
+  incluidas menor/igual/mayor cuota, cero y promoción/democión esperando el lock.
+- Chrome con API simulada comprobó límites nativo/JS para member, exceso propio de
+  owner, traducción del 409, recarga de suscripciones/pagos/miembros/invitaciones y
+  reparto, cambio de rol, recuperación tras error y conservación del borrador.
+  Una escritura PATCH retenida comprobó el bloqueo temporal de navegación y que
+  no se inicia una lectura que sobrescriba su resultado. Un renombrado remoto
+  actualizó el nombre sin edición y conservó los borradores cuando sí estaban editados.
+  Frontend lint, TypeScript y build aprobados; sin escrituras de estas pruebas UI
+  en la base real. El propietario confirmó después el recorrido manual completo
+  de dos cuentas; queda registrado arriba en este bloque.
+- Revisión independiente cerrada tras corregir las dos carreras anteriores. API
+  local reiniciada con el build actualizado para continuar la prueba manual,
+  levantando únicamente Express y manteniendo el scheduler sin iniciar.
 
 ## 1. Dominio y permisos
 
@@ -738,6 +954,10 @@ Con el grupo bloqueado y la membresía revalidada, bloquear padre y parte dentro
 del grupo. Comprobar ownership de la parte con el usuario autenticado, no con body.
 Exigir padre y parte pending. Body `{}` usa share_amount; actualAmount opcional
 usa el mismo contrato decimal string de Fase 4.
+
+Con el rol revalidado después del bloqueo, exigir `actualAmount <= share_amount`
+para member, comparando NUMERIC. Para owner la excepción solo aplica a su propia
+parte. El exceso de cuota del miembro devuelve 409 y revierte la transacción.
 
 Antes de actualizar, comparar en PostgreSQL la suma ya confirmada más el nuevo
 importe contra `9999999999.99`, incluso si no es la última parte. Ante exceso,
@@ -950,7 +1170,9 @@ Integración optativa `RUN_DB_TESTS=1`, con prefijo `phase5-test-` y UUID exclus
 2. Generar con tres miembros conserva sumas exactas; personal sigue sin partes.
 3. Repetir generación conserva el reparto aun si la membresía cambió después.
 4. Fallo al insertar una parte revierte pago, partes y avance de fecha.
-5. Confirmar parte propia permite importe por defecto o corregido; parte ajena
+5. Confirmar parte propia permite importe por defecto o corregido: member hasta
+   su cuota capturada y owner puede superar la propia. Probar menor/igual/exceso y
+   cambio de rol mientras espera el bloqueo. Una parte ajena
    recibe 403; id/grupo/pago incompatibles reciben 404 sin filtrar datos.
 6. Pago parcial permanece pending y compatible con CHECK de 006; la última parte
    fija total y price_changed. Dos últimas confirmaciones simultáneas cierran una vez.
@@ -992,24 +1214,29 @@ En PowerShell puede ser necesario `pnpm.cmd`. Activar RUN_DB_TESTS solo para la
 comprobación pertinente y restaurar su valor después. No usar credenciales reales
 en ejemplos ni leer .env; las herramientas de la aplicación cargan su configuración.
 
-## 10. Checklist de cierre — implementación en curso
+## 10. Checklist de cierre — Fase 5 completada (27 de octubre de 2026)
 
 - [x] Requisito previo: cierre de Fase 4 contrastado el 24 de octubre de 2026; avance de Fase 5 registrado por bloque en la sección 0.
 - [x] Migraciones 007 y 008 aplicadas mediante runner y segunda ejecución sin pendientes.
-- [ ] Personal, autenticación, dinero y fechas conservan sus contratos.
-- [ ] Un owner activo coherente; transferencia, bajas y límite de miembros atómicos.
+- [x] Personal, autenticación, dinero y fechas conservan sus contratos; suite de
+  regresión y recorrido manual completados.
+- [x] Un owner activo coherente; transferencia, bajas y límite de miembros atómicos.
 - [x] Reparto exacto, estable y capturado una vez; sin redistribución histórica.
 - [x] Generación, partes y avance de fecha juntos; grupos ocupados no consumen el cupo antes de SKIP LOCKED.
 - [x] Solo se confirma la parte propia; padre familiar agregado y acumulado dentro de rango.
 - [x] Skip global exclusivamente antes de confirmar partes; 409 preserva historia parcial.
-- [ ] Invitaciones con secreto de un uso, caducidad, hash y destinatario actual comprobados.
-- [ ] Aceptación no enumera cuentas, no degrada owners y no depende de correo verificado ficticio.
-- [ ] Todos los endpoints limitados por grupo; roles revalidados después del bloqueo en escrituras.
-- [ ] Selector, gestión de miembros y partes familiares comprobados en navegador con datos de prueba.
-- [ ] Estados independientes, mensajes y confirmaciones comprensibles; sin tokens o códigos en storage/logs/URL.
-- [ ] Pruebas apropiadas, integración real cuando disponible, lint/typecheck/build y límites documentados.
-- [ ] Documentación HTTP actualizada y regresión personal comprobada.
-- [ ] Sin gateway, envío automático, notificaciones, reparto ponderado ni cambios de Fase 6.
+- [x] Invitaciones con secreto de un uso, caducidad, hash y destinatario actual comprobados.
+- [x] Aceptación no enumera cuentas, no degrada owners y no depende de correo verificado ficticio.
+- [x] Todos los endpoints limitados por grupo; roles revalidados después del bloqueo en escrituras.
+- [x] Selector, gestión de miembros y partes familiares comprobados por el
+  propietario en navegador con dos cuentas y datos de prueba.
+- [x] Estados independientes, mensajes y confirmaciones comprensibles; el
+  propietario completó los flujos de invitación y familia. Las pruebas de interfaz
+  también comprobaron que tokens/códigos no se guardan en URL o storage; los logs
+  se revisaron en las pruebas de backend.
+- [x] Pruebas apropiadas: 978 pruebas con RUN_DB_TESTS=1 en 35 archivos; backend typecheck/build y frontend lint/typecheck/build aprobados. Límites y separación entre pruebas UI simuladas y recorrido real documentados.
+- [x] Documentación HTTP actualizada y regresión personal comprobada por la suite completa.
+- [x] Sin gateway, envío automático, notificaciones, reparto ponderado ni cambios de Fase 6.
 
 ## Referencias técnicas para implementar
 

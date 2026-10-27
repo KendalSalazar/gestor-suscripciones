@@ -1,9 +1,9 @@
-# Grupos, miembros e invitaciones — Fase 5, bloques 10 a 13
+# Grupos, miembros e invitaciones — Fase 5
 
 Un usuario conserva su grupo personal y puede participar en varias familias.
 Estas rutas permiten listar sus grupos activos, crear una familia, renombrarla,
-consultar sus miembros activos, transferir su propiedad, gestionar bajas y crear
-invitaciones para una familia.
+consultar sus miembros activos, transferir su propiedad, gestionar bajas y usar
+invitaciones para incorporarse a una familia.
 El registro en `/auth/register` sigue creando el grupo personal con su owner.
 
 Todas las rutas requieren `Authorization: Bearer <access-token>`. El usuario se
@@ -180,9 +180,9 @@ este body:
 
 El servidor recorta y convierte el email a minúsculas. Debe ser válido y tener
 como máximo 254 caracteres. Devuelve `201 { "invitation": ..., "token": "..." }`.
-El campo `token` contiene el secreto opaco una sola vez. La interfaz que se
-construya en un bloque posterior puede mostrar el código para compartir como
-`invitation.id + "." + token`.
+El campo `token` contiene el secreto opaco una sola vez. La interfaz del owner
+muestra el código para compartir como `invitation.id + "." + token` y lo oculta
+después de copiarlo o descartarlo.
 
 La respuesta de invitación incluye `id`, `groupId`, `groupName`, `email`,
 `invitedByName`, `status`, `createdAt` y `expiresAt`. No contiene el hash ni
@@ -227,6 +227,33 @@ anterior siguen siendo visibles y revocables para el nuevo owner. Si se pierde
 el código secreto, hay que revocar y crear otra invitación; el GET no puede
 recuperarlo.
 
+## Usar un código de invitación
+
+El destinatario inicia sesión y envía el UUID de invitación en la ruta y el token
+secreto en el body. La pantalla puede recibir el código copiado como
+`invitationId.token` y separarlo en esos dos valores; nunca debe poner el token
+en URL, query, logs ni almacenamiento persistente.
+
+`POST /invitations/:invitationId/preview` recibe `{ "token": "..." }` y devuelve
+`200 { "invitation": ... }` para una invitación pending y vigente. No cambia la
+invitación ni crea membresía. El servidor compara contra el email actual de la
+cuenta en `users`; el email guardado dentro del JWT no sirve para autorizar.
+UUID inexistente, token incorrecto y email distinto comparten `404 Invitation
+unavailable`. Invitaciones ya resueltas o vencidas responden `409`.
+
+`POST /invitations/:invitationId/accept` usa el mismo body y devuelve
+`200 { "group": ..., "membership": ... }`. La membresía nueva queda como member
+activo; una fila previa `invited` o `removed` elegible se reactiva como member.
+Una membresía ya activa no se modifica y responde `409`. El límite de 20 miembros
+activos se comprueba bajo el bloqueo del grupo.
+
+`POST /invitations/:invitationId/decline` también requiere el token y devuelve
+`200 { "invitation": ... }` con estado `declined`, sin crear membresía. Aceptar o
+rechazar y resolver la invitación ocurren en una única transacción. Se bloquea
+en orden grupo → invitación → membresía; si el owner revoca primero, el destinatario
+recibe `409`, y si la aceptación se confirma primero, la revocación también entra
+en conflicto. El vencimiento se vuelve a comprobar dentro de la transacción.
+
 ## Errores
 
 Se conserva el sobre `{ "error": { "message": "...", "status": 400 } }`.
@@ -236,8 +263,8 @@ Se conserva el sobre `{ "error": { "message": "...", "status": 400 } }`.
 | 400 | UUID, nombre, email, newOwnerId, body o query inválidos; campos adicionales |
 | 401 | Bearer ausente, inválido o expirado |
 | 403 | Sin membresía activa, grupo ajeno o inexistente; escritura reservada al owner solicitada por member |
-| 404 | Miembro destinatario inexistente/no activo o invitación inexistente dentro del grupo autorizado |
-| 409 | Operación familiar en grupo personal; email ya es miembro, invitación duplicada o vencida/no revocable, owner que intenta salir, parte propia pendiente, transferencia o estado incompatible |
+| 404 | Miembro destinatario inexistente/no activo; UUID/token/email de destinatario de invitación no disponibles con respuesta uniforme |
+| 409 | Operación familiar en grupo personal; email ya es miembro, invitación duplicada, vencida/no revocable, límite de familia alcanzado, owner que intenta salir, parte propia pendiente, transferencia o estado incompatible |
 | 500 | Fallo interno; los errores SQL de invitaciones se presentan como error genérico, sin detalles de base de datos ni del email |
 
 El `403 Forbidden` uniforme no distingue grupo inexistente de grupo ajeno.
@@ -275,9 +302,9 @@ Para comprobar manualmente la transferencia con dos cuentas que ya sean miembros
 activos de una familia, consultar `/members` con ambas y usar el UUID del miembro
 destinatario en el POST del owner. Después, GET `/groups` y `/members` deben
 mostrar los roles intercambiados. Probar que el owner anterior recibe `403` al
-renombrar y que el nuevo puede hacerlo. El acceso de nuevas cuentas mediante
-invitaciones se implementará en sus bloques correspondientes; la prueba manual
-del propietario no se considera ejecutada por pasar las pruebas automatizadas.
+renombrar y que el nuevo puede hacerlo. La gestión visual del grupo está en el
+dashboard y el destinatario resuelve códigos en `/invitations`; la comprobación
+manual de ambos recorridos queda pendiente.
 
 Las pruebas [de salida y expulsión con pool simulado](../src/modules/groups/group-member-removal.routes.test.ts)
 y su [integración PostgreSQL/HTTP](../src/modules/groups/group-member-removal.int.test.ts)
@@ -298,8 +325,16 @@ de email, no enumeración de cuentas, límites por grupo, expiración, revocaci�
 rol revalidado tras bloqueo. La integración crea y elimina su propio esquema
 temporal; no envía correo ni altera grupos del esquema `public`.
 
-Las rutas de creación, listado y revocación de invitaciones están implementadas.
-La vista previa y resolución de invitaciones por el destinatario corresponden
-al bloque 14 del [plan](../../prompts/plan-fases/plan-fase-5.md); la gestión
-visual del owner y las pantallas familiares también tienen sus propios bloques.
-Las rutas de suscripciones, pagos y partes siguen sus contratos vigentes.
+La [API del destinatario](../src/modules/groups/invitation-recipient.routes.ts)
+cuenta con pruebas HTTP y de integración PostgreSQL en el bloque 14. Comprueban
+el correo de la base frente a JWT obsoleto, token/hash, privacidad 404, preview
+sin escritura, aceptación/rechazo atómicos, límite de miembros y concurrencia.
+La integración también usa un esquema temporal propio.
+
+Las rutas y las interfaces del owner y del destinatario están implementadas:
+gestión de códigos desde el dashboard y resolución en `/invitations`. El código
+se entrega una sola vez; el frontend lo conserva solo en memoria y no lo coloca
+en URL, query ni storage. Consulta el [detalle de invitaciones](invitations.md).
+Los recorridos visuales requieren todavía comprobación manual en navegador con
+dos cuentas. Las rutas de suscripciones, pagos y partes siguen sus contratos
+vigentes.

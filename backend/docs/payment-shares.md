@@ -37,7 +37,7 @@ Ejemplo de una parte confirmada mientras el pago del grupo sigue pendiente:
       "userName": "Persona",
       "shareAmount": "3.34",
       "sharePercentage": "33.3334",
-      "actualAmount": "3.50",
+      "actualAmount": "3.25",
       "status": "confirmed",
       "confirmedAt": "2026-10-26T12:00:00.000Z",
       "createdAt": "2026-10-25T12:00:00.000Z",
@@ -56,7 +56,7 @@ Ejemplo de una parte confirmada mientras el pago del grupo sigue pendiente:
       "summary": {
         "totalShares": 3,
         "confirmedShares": 1,
-        "confirmedAmount": "3.50"
+        "confirmedAmount": "3.25"
       }
     }
   ]
@@ -104,6 +104,17 @@ El importe es un string decimal no negativo, hasta dos decimales y máximo
 9999999999.99. Cero es válido. No se aceptan números JSON, negativos, notación
 exponencial, espacios alrededor del importe ni campos adicionales. La cuota
 prevista y el coste de la suscripción se conservan.
+
+Un member activo puede confirmar un importe entre cero y su `shareAmount` previsto,
+inclusive. El límite utiliza la cuota capturada al generar ese pago, aunque después
+cambie el coste de la suscripción. Superarla devuelve `409 Member amount cannot
+exceed the assigned share` y no modifica la parte ni el pago.
+
+Un owner activo puede superar **su propia** cuota, dentro del máximo de importe y
+del límite acumulado del pago. La excepción no le permite confirmar una parte
+ajena. El rol usado es el vigente después de bloquear el grupo; una transferencia
+de ownership mientras la solicitud espera puede cambiar el límite aplicable.
+Esta regla se aplica a nuevas confirmaciones y conserva los registros históricos.
 
 Devuelve `200 { "share": ..., "payment": ..., "summary": ... }` con los mismos
 campos de parte, pago y resumen definidos en las lecturas. La parte pasa a
@@ -158,7 +169,7 @@ El formato es `{ "error": { "message": string, "status": number } }`.
 | 401 | Bearer ausente, inválido o caducado |
 | 403 | Grupo inexistente, ajeno, membresía inactiva o intento de confirmar una parte ajena |
 | 404 | El pago o la parte no existe dentro del grupo/pago autorizado |
-| 409 | Grupo personal, pago/parte resueltos o acumulado fuera de rango |
+| 409 | Grupo personal, pago/parte resueltos, exceso de cuota para member o acumulado fuera de rango |
 | 500 | Error interno |
 
 El 409 personal usa `Payment shares are only available for family groups`.
@@ -173,5 +184,6 @@ ya esté resuelta. Un UUID de parte que corresponde a otro pago o grupo devuelve
 La confirmación directa del padre familiar sigue bloqueada. El owner puede
 [omitir el pago familiar completo](payments.md#omitir-un-pago-pendiente) junto
 con sus partes cuando todas siguen pending. No hay acción para omitir una parte
-individual ni interfaz familiar en esta entrega. El avance completo está en
-[el plan de Fase 5](../../prompts/plan-fases/plan-fase-5.md).
+individual. El dashboard familiar consulta partes, progreso y reparto y permite
+confirmar la parte propia; la comprobación manual sigue pendiente. El avance
+completo está en [el plan de Fase 5](../../prompts/plan-fases/plan-fase-5.md).

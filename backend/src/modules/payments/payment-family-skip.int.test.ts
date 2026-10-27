@@ -246,7 +246,7 @@ describeWithDatabase('family payment skipping with real PostgreSQL and HTTP', ()
   it.each(['confirmed', 'skipped'] as const)('preserves history when a pending parent already has a %s share', async (status) => {
     const fixture = await createFixture();
     if (status === 'confirmed') {
-      await shares.confirmPaymentShare(fixture.userIds[1], fixture.groupId, fixture.paymentId, fixture.shareIds[1], '4.25');
+      await shares.confirmPaymentShare(fixture.userIds[1], fixture.groupId, fixture.paymentId, fixture.shareIds[1], '3.25');
     } else {
       // Defensive historical fixture: the all-pending rule must reject a mixed set.
       await database.query("UPDATE payment_shares SET status = 'skipped' WHERE id = $1", [fixture.shareIds[1]]);

@@ -226,6 +226,40 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
     expect(result.summary).toEqual({ totalShares: 1, confirmedShares: 1, confirmedAmount: amount });
   });
 
+  it.each(['0.00', '0.10', '0.15'])('allows a member amount %s up to the captured quota', async (amount) => {
+    const fixture = await createFixture();
+    const result = await confirm(fixture, 1, amount);
+    expect(result.share).toMatchObject({ shareAmount: '0.15', actualAmount: amount, status: 'confirmed' });
+    expect(result.payment).toMatchObject({ status: 'pending', actualAmount: null });
+  });
+
+  it('rejects a member amount above the captured quota through HTTP without changing history', async () => {
+    const fixture = await createFixture();
+    await database.query("UPDATE subscriptions SET expected_cost = '99.99' WHERE id = $1", [fixture.subscriptionId]);
+    const before = await snapshot(fixture);
+    expect(await request(confirmPath(fixture, 1), fixture.userIds[1], { actualAmount: '0.16' }))
+      .toEqual({ status: 409, body: { error: { message: 'Member amount cannot exceed the assigned share', status: 409 } } });
+    expect(await snapshot(fixture)).toBe(before);
+  });
+
+  it('allows an owner to exceed only their own quota', async () => {
+    const fixture = await createFixture({ count: 1 });
+    const result = await confirm(fixture, 0, '0.35');
+    expect(result.share).toMatchObject({ shareAmount: '0.30', actualAmount: '0.35', status: 'confirmed' });
+    expect(result.payment).toMatchObject({ expectedAmount: '0.30', actualAmount: '0.35', status: 'confirmed', priceChanged: true });
+  });
+
+  it('requires a zero-quota member to confirm zero and preserves history on an excess attempt', async () => {
+    const fixture = await createFixture({ amount: '0.00', shareAmounts: ['0.00', '0.00'] });
+    await confirm(fixture, 0);
+    const before = await snapshot(fixture);
+    await expect(confirm(fixture, 1, '0.01')).rejects.toMatchObject({
+      status: 409, message: 'Member amount cannot exceed the assigned share',
+    });
+    expect(await snapshot(fixture)).toBe(before);
+    expect((await confirm(fixture, 1)).payment).toMatchObject({ status: 'confirmed', actualAmount: '0.00' });
+  });
+
   it('still requires and accepts confirmation of a zero quota', async () => {
     const fixture = await createFixture({ count: 1, amount: '0.00', shareAmounts: ['0.00'] });
     expect((await shares.getPaymentShares(fixture.userIds[0], fixture.groupId, fixture.paymentId)).payment.status).toBe('pending');
@@ -236,11 +270,11 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
 
   it('keeps the partial parent unresolved and closes the exact sum of 0.10 and 0.20', async () => {
     const fixture = await createFixture();
-    const first = await confirm(fixture, 0, '0.1');
-    expect(first.share.actualAmount).toBe('0.10');
+    const first = await confirm(fixture, 0, '0.2');
+    expect(first.share.actualAmount).toBe('0.20');
     expect(first.payment).toMatchObject({ status: 'pending', actualAmount: null, resolvedAt: null, priceChanged: false });
-    const last = await confirm(fixture, 1, '0.2');
-    expect(last.share.actualAmount).toBe('0.20');
+    const last = await confirm(fixture, 1, '0.1');
+    expect(last.share.actualAmount).toBe('0.10');
     expect(last.payment).toMatchObject({ expectedDate: '2090-01-01', actualAmount: '0.30', status: 'confirmed', priceChanged: false });
     expect(last.summary).toEqual({ totalShares: 2, confirmedShares: 2, confirmedAmount: '0.30' });
   });
@@ -399,9 +433,10 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
     expect(await snapshot(fixture)).toBe(before);
   });
 
-  it.each(['removed member', 'demoted owner'] as const)('revalidates a %s after waiting for the group lock', async (change) => {
+  it.each(['removed member', 'demoted owner', 'demoted owner exceeding quota', 'promoted member exceeding quota'] as const)(
+    'revalidates a %s after waiting for the group lock', async (change) => {
     const fixture = await createFixture();
-    const actor = change === 'demoted owner' ? 0 : 1;
+    const actor = change.startsWith('demoted owner') ? 0 : 1;
     const before = await snapshot(fixture);
     const holder = await database.connect();
     let holding = false;
@@ -412,13 +447,13 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
       holding = true;
       await holder.query('SELECT id FROM groups WHERE id = $1 FOR UPDATE', [fixture.groupId]);
       const pid = (await holder.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0].pid;
-      attempted = confirm(fixture, actor).then(
+      attempted = confirm(fixture, actor, change.includes('exceeding quota') ? '0.16' : undefined).then(
         (result) => { finished = true; return { ok: true as const, result }; },
         (error: unknown) => { finished = true; return { ok: false as const, error }; },
       );
       await waitForGroupLock(pid, () => finished);
-      if (change === 'demoted owner') {
-        // Direct fixture SQL simulates transfer; confirming one's own part needs no owner role.
+      if (change !== 'removed member') {
+        // Direct fixture SQL simulates transfer while the confirmation waits.
         await holder.query("UPDATE group_members SET role = 'member' WHERE group_id = $1 AND user_id = $2",
           [fixture.groupId, fixture.userIds[0]]);
         await holder.query("UPDATE group_members SET role = 'owner' WHERE group_id = $1 AND user_id = $2",
@@ -433,6 +468,11 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
       const result = await attempted;
       if (change === 'demoted owner') {
         expect(result).toMatchObject({ ok: true, result: { share: { userId: fixture.userIds[0], status: 'confirmed' }, payment: { status: 'pending' } } });
+      } else if (change === 'promoted member exceeding quota') {
+        expect(result).toMatchObject({ ok: true, result: { share: { userId: fixture.userIds[1], actualAmount: '0.16', status: 'confirmed' } } });
+      } else if (change === 'demoted owner exceeding quota') {
+        expect(result).toMatchObject({ ok: false, error: { status: 409, message: 'Member amount cannot exceed the assigned share' } });
+        expect(await snapshot(fixture)).toBe(before);
       } else {
         expect(result).toMatchObject({ ok: false, error: { status: 403 } });
         expect(await snapshot(fixture)).toBe(before);
@@ -481,17 +521,17 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
     expect(await request(`/groups/${fixture.groupId}/payments/${fixture.paymentId}/confirm`, fixture.userIds[0]))
       .toMatchObject({ status: 409, body: { error: { status: 409 } } });
     expect(await snapshot(fixture)).toBe(pending);
-    const first = await request<Confirmation>(confirmPath(fixture, 0), fixture.userIds[0]);
-    expect(first).toMatchObject({ status: 200, body: { share: { actualAmount: '0.15' }, payment: { status: 'pending' } } });
+    const first = await request<Confirmation>(confirmPath(fixture, 0), fixture.userIds[0], { actualAmount: '0.20' });
+    expect(first).toMatchObject({ status: 200, body: { share: { actualAmount: '0.20' }, payment: { status: 'pending' } } });
     const partial = await snapshot(fixture);
     for (const operation of ['confirm', 'skip']) {
       expect(await request(`/groups/${fixture.groupId}/payments/${fixture.paymentId}/${operation}`, fixture.userIds[0]))
         .toMatchObject({ status: 409, body: { error: { status: 409 } } });
     }
     expect(await snapshot(fixture)).toBe(partial);
-    const last = await request<Confirmation>(confirmPath(fixture, 1), fixture.userIds[1], { actualAmount: '0.20' });
+    const last = await request<Confirmation>(confirmPath(fixture, 1), fixture.userIds[1], { actualAmount: '0.15' });
     expect(last).toMatchObject({ status: 200, body: {
-      share: { userId: fixture.userIds[1], actualAmount: '0.20', status: 'confirmed' },
+      share: { userId: fixture.userIds[1], actualAmount: '0.15', status: 'confirmed' },
       payment: { actualAmount: '0.35', status: 'confirmed', priceChanged: true },
       summary: { totalShares: 2, confirmedShares: 2, confirmedAmount: '0.35' },
     } });
