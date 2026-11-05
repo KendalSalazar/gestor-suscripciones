@@ -4,10 +4,12 @@ Plan para este proyecto individual de aprendizaje. **Un bloque pequeño por
 entrega**, con explicación, comprobación y parada antes de avanzar. El alcance
 está en [06-fase.md](../06-fase.md). No iniciar la Fase 7 durante estas entregas.
 
-**Estado al 5 de noviembre de 2026: bloques 1 a 7 completados.** El generador
+**Estado al 5 de noviembre de 2026: bloques 1 a 11 implementados y comprobados.** El generador
 guarda avisos iniciales y las confirmaciones personal y familiar avisan de
-importes diferentes. El detector de vencimientos está implementado, pero aún no
-se ejecuta automáticamente; la CLI, el ciclo horario, la API y la interfaz siguen pendientes.
+importes diferentes. El detector de vencimientos dispone de CLI manual y está
+integrado en el ciclo horario; la API permite consultar y marcar avisos propios
+como leídos. La interfaz sigue pendiente. Queda pendiente
+la prueba manual dirigida del propietario con una suscripción de prueba.
 
 ## 0. Entrada contrastada con el repositorio
 
@@ -234,6 +236,91 @@ interfaz. El detector de pagos vencidos comienza en el bloque 7.
 
 El detector aún no está conectado a una CLI ni al ciclo horario. La fecha local
 según `PAYMENT_TIME_ZONE`, la API y la interfaz se completarán en bloques posteriores.
+
+### Bloque 8 — Comando manual limitado (5 de noviembre de 2026)
+
+- [x] `notifications:scan` requiere exactamente `--subscription-id UUID` o
+  `--all`; rechaza argumentos inválidos antes de conectar. No admite fecha manual.
+- [x] Comprueba la conexión, ejecuta el runner de migraciones, calcula la fecha
+  con `PAYMENT_TIME_ZONE`, ejecuta el detector y cierra el pool también ante errores.
+  [notifications.md](../../backend/docs/notifications.md) documenta el alcance,
+  los límites y que el comando escribe y aplica migraciones pendientes.
+- [x] Pasaron 16 pruebas unitarias y una integración PostgreSQL en esquema
+  exclusivo. Esta última invocó dos procesos CLI por UUID: se creó un único aviso
+  y otra suscripción vencida quedó fuera del filtro. El esquema se eliminó.
+  El comando pnpm con UUID inválido mostró el uso y terminó con error antes de
+  conectar. No se ejecutó `--all` real ni se aplicaron migraciones en `public`.
+- [x] Suite completa con `RUN_DB_TESTS=1`: 1070 pruebas en 42 archivos; typecheck
+  y build correctos. Los conteos de pagos, partes y avisos coincidieron con los
+  iniciales y no quedaron esquemas temporales. Revisión independiente sin hallazgos.
+- [ ] Prueba manual dirigida del propietario con una suscripción de prueba; la
+  interfaz de notificaciones todavía no está disponible.
+
+El ciclo horario sigue pendiente del bloque 9; la modalidad global de la CLI
+es una acción manual deliberada y no se ejecutó durante esta entrega.
+
+### Bloque 9 — Ciclo horario y apagado (5 de noviembre de 2026)
+
+- [x] El scheduler calcula una fecha local por ciclo y ejecuta en orden la
+  generación de pagos y el detector de vencimientos. Cada tarea captura su propio
+  fallo; un error de generación no impide intentar el detector. Si falla el
+  cálculo de fecha, no se ejecuta ninguna de las dos tareas.
+- [x] La reserva de ejecución cubre ambas tareas; los intervalos solapados se
+  omiten. `stop()` espera el ciclo activo y el servidor espera el scheduler y
+  HTTP antes de cerrar el pool. Los errores se registran sin mensajes arbitrarios.
+- [x] Pasaron 23 pruebas dirigidas de scheduler y ciclo de vida del servidor,
+  con servicios simulados; cubren zona, fecha compartida, fallos, solapamiento,
+  reanudación y apagado. Typecheck y build correctos. La revisión independiente
+  no encontró hallazgos; no se inició el servidor ni se hizo una corrida global.
+- [x] Suite backend sin `RUN_DB_TESTS`: 674 pruebas aprobadas y 401 de
+  integración omitidas como corresponde. En el bloque 8 se habían comprobado
+  1070 pruebas con PostgreSQL antes de este cambio de coordinación.
+
+Al arrancar el servidor ahora se realiza la revisión global inicial y después
+cada hora. La consulta y presentación de los avisos siguen pendientes.
+
+### Bloque 10 — Consulta privada de avisos (5 de noviembre de 2026)
+
+- [x] `GET /notifications` usa la identidad del token y filtra por destinatario
+  y membresía activa en la propia consulta. Un grupo filtrado ajeno o inexistente
+  devuelve 403; el owner no accede a avisos de otros miembros.
+- [x] Filtros estrictos `status`, `groupId` y cursor validado; páginas de 50 con
+  desempate por UUID, conteo de no leídos independiente de estado y cursor. Lista
+  y conteo comparten una transacción REPEATABLE READ de solo lectura.
+- [x] El DTO conserva importes string y DATE; incluye mensaje controlado, estado
+  actual de la parte propia y `actionRequired`. Se rechazó expresamente el año
+  0000 del cursor, admitido por JavaScript pero no por PostgreSQL.
+- [x] Las pruebas HTTP con PostgreSQL aislado comprueban permisos, filtros,
+  datos, 106 avisos con idéntico instante y cambio concurrente entre página y
+  conteo. Pruebas unitarias verifican el cursor. Revisión independiente del
+  código y pruebas; se corrigieron el año 0000 y la cobertura personal señalados.
+- [x] Regresión con `RUN_DB_TESTS=1`: 1086 pruebas aprobadas en 44 archivos;
+  typecheck y build correctos. Los conteos de pagos, partes y avisos en `public`
+  coincidieron con los previos y no quedaron esquemas temporales de prueba.
+  [notifications.md](../../backend/docs/notifications.md) documenta el GET.
+
+Marcar avisos como leídos corresponde al bloque 11 y el centro visual a bloques
+posteriores. El servidor de producción y el scheduler no se iniciaron para probar.
+
+### Bloque 11 — Lectura persistida (5 de noviembre de 2026)
+
+- [x] `POST /notifications/:notificationId/read` valida UUID, cuerpo vacío y
+  query vacía. Requiere sesión y responde con el aviso actualizado; los avisos
+  ajenos, inexistentes o sin membresía activa responden el mismo 404.
+- [x] Localiza el aviso visible, bloquea el grupo primero y revalida usuario y
+  membresía al actualizar. `COALESCE` conserva la primera fecha ante repetición
+  y concurrencia; pago, partes y otros avisos no se modifican.
+- [x] Cinco pruebas HTTP con PostgreSQL aislado comprueban permisos, validación,
+  repetición, cuatro solicitudes simultáneas y baja concurrente con espera real
+  del bloqueo. Se comprobó además una fecha de lectura histórica. Revisión
+  independiente de código y pruebas sin hallazgos concretos.
+- [x] Regresión completa con `RUN_DB_TESTS=1`: 1091 pruebas en 45 archivos;
+  tras añadir la comprobación histórica se repitieron las cinco pruebas dirigidas.
+  Typecheck y build correctos. Los conteos de pagos, partes y avisos en `public`
+  coincidieron con los previos y no quedaron esquemas temporales.
+
+La interfaz y el recorrido manual con cuentas reales siguen pendientes. El
+contrato del POST se documenta en notifications.md.
 
 ## 1. Comportamiento y decisiones de dominio
 
@@ -727,12 +814,14 @@ Repetir la suite completa en el cierre, no en cada edición documental.
 - [x] Diferencia personal al confirmar, con destinatario y mensaje correctos.
 - [x] Diferencia familiar al cerrar, con destinatario y mensaje correctos.
 - [x] Detector de siete días con fecha explícita, suscripciones desactivadas y partes propias.
-- [ ] Fecha local del ciclo horario calculada con `PAYMENT_TIME_ZONE` y comprobada.
+- [x] Fecha local del ciclo horario calculada con `PAYMENT_TIME_ZONE` y comprobada.
 - [x] Lotes avanzan, concurrencia revalida y no hay avisos diarios repetidos.
-- [ ] CLI limitada por UUID y ciclo horario con errores independientes y apagado limpio.
-- [ ] API solo del destinatario y con membresía activa en listado, conteo y acciones.
-- [ ] Cursor y filtros permiten recorrer todo el centro sin truncamiento silencioso.
-- [ ] Lectura idempotente, historial y pérdida/restitución de acceso comprobados.
+- [x] CLI limitada por UUID o modalidad global explícita, con validación y cierre.
+- [x] Ciclo horario con errores independientes y apagado limpio.
+- [x] Listado y conteo solo del destinatario y con membresía activa.
+- [x] Acción de lectura solo del destinatario y con membresía activa.
+- [x] Cursor y filtros permiten recorrer todo el listado sin truncamiento silencioso.
+- [ ] Lectura idempotente, historial y pérdida/restitución de acceso comprobados en el recorrido real.
 - [ ] Centro y enlaces contextuales comprobados en navegador con dos cuentas reales.
 - [ ] Estados, accesibilidad móvil/teclado, recarga y sesión conservados.
 - [ ] Dinero string, DATE y reglas de owner/member de Fase 5 preservados.

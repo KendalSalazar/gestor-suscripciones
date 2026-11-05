@@ -2,8 +2,15 @@ import { env } from '../../config/env';
 import { jobLogger } from '../../config/logger';
 import { todayInTimeZone } from './billing-date';
 import { runDuePayments } from './payment-generation.service';
+import { runOverdueNotifications } from '../notifications/notification-generation.service';
 
 const PAYMENT_INTERVAL_MS = 60 * 60 * 1000;
+
+function safeErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') return undefined;
+  return /^[A-Z0-9]{5}$/.test(error.code) || ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT'].includes(error.code)
+    ? error.code : undefined;
+}
 
 export function startPaymentScheduler(): { stop(): Promise<void> } {
   let stopped = false;
@@ -20,13 +27,20 @@ export function startPaymentScheduler(): { stop(): Promise<void> } {
     activeRun = Promise.resolve()
       .then(async () => {
         const today = todayInTimeZone(new Date(), env.paymentTimeZone);
-        await runDuePayments(today);
+        try {
+          await runDuePayments(today);
+        } catch (error: unknown) {
+          jobLogger.error('Scheduled payment generation failed; next run will retry', { code: safeErrorCode(error) });
+        }
+        try {
+          await runOverdueNotifications(today);
+        } catch (error: unknown) {
+          jobLogger.error('Scheduled overdue notification scan failed; next run will retry', { code: safeErrorCode(error) });
+        }
       })
       .catch((error: unknown) => {
-        // Avoid logging arbitrary error messages, which may contain private data.
-        jobLogger.error('Scheduled payment generation failed; next run will retry', {
-          code: typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined,
-        });
+        // The calendar calculation failed before either job could start.
+        jobLogger.error('Scheduled payment cycle failed; next run will retry', { code: safeErrorCode(error) });
       })
       .finally(() => {
         activeRun = undefined;

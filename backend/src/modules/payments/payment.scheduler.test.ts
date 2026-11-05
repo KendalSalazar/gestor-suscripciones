@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGenerate, jobLogger } = vi.hoisted(() => ({
+const { mockGenerate, mockScan, jobLogger } = vi.hoisted(() => ({
   mockGenerate: vi.fn(),
+  mockScan: vi.fn(),
   jobLogger: { info: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('./payment-generation.service', () => ({ runDuePayments: mockGenerate }));
+vi.mock('../notifications/notification-generation.service', () => ({ runOverdueNotifications: mockScan }));
 vi.mock('../../config/logger', () => ({ jobLogger }));
 vi.mock('../../config/env', () => ({ env: { paymentTimeZone: 'America/Costa_Rica' } }));
 
@@ -24,6 +26,7 @@ describe('payment scheduler', () => {
     vi.setSystemTime(new Date('2026-10-15T02:00:00.000Z'));
     env.paymentTimeZone = 'America/Costa_Rica';
     mockGenerate.mockResolvedValue({ subscriptionsProcessed: 0, paymentsCreated: 0, subscriptionsStillDue: 0 });
+    mockScan.mockResolvedValue({ paymentsProcessed: 0, notificationsCreated: 0 });
     scheduler = undefined;
     releasePending = [];
   });
@@ -46,6 +49,8 @@ describe('payment scheduler', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(mockGenerate).toHaveBeenCalledExactlyOnceWith('2026-10-14');
+    expect(mockScan).toHaveBeenCalledExactlyOnceWith('2026-10-14');
+    expect(mockGenerate.mock.invocationCallOrder[0]).toBeLessThan(mockScan.mock.invocationCallOrder[0]);
     expect(jobLogger.info).toHaveBeenCalledWith('Payment scheduler started', {
       intervalMs: HOUR, timeZone: 'America/Costa_Rica',
     });
@@ -61,6 +66,8 @@ describe('payment scheduler', () => {
     expect(mockGenerate).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(mockGenerate).toHaveBeenNthCalledWith(2, '2026-10-15');
+    expect(mockScan).toHaveBeenNthCalledWith(1, '2026-10-14');
+    expect(mockScan).toHaveBeenNthCalledWith(2, '2026-10-15');
     await vi.advanceTimersByTimeAsync(HOUR);
     expect(mockGenerate).toHaveBeenCalledTimes(3);
   });
@@ -71,6 +78,7 @@ describe('payment scheduler', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(mockGenerate).toHaveBeenCalledExactlyOnceWith('2026-10-15');
+    expect(mockScan).toHaveBeenCalledExactlyOnceWith('2026-10-15');
   });
 
   it('skips overlapping intervals and resumes after the active run finishes', async () => {
@@ -80,6 +88,7 @@ describe('payment scheduler', () => {
     await vi.advanceTimersByTimeAsync(2 * HOUR);
 
     expect(mockGenerate).toHaveBeenCalledTimes(1);
+    expect(mockScan).not.toHaveBeenCalled();
     expect(jobLogger.info).toHaveBeenCalledWith('Payment generation interval skipped: previous run still active');
     held.resolve();
     await vi.advanceTimersByTimeAsync(HOUR);
@@ -97,6 +106,7 @@ describe('payment scheduler', () => {
       code: 'ECONNRESET',
     });
     expect(JSON.stringify(jobLogger.error.mock.calls)).not.toContain('private-error-details');
+    expect(mockScan).toHaveBeenCalledExactlyOnceWith('2026-10-14');
     await vi.advanceTimersByTimeAsync(HOUR);
     expect(mockGenerate).toHaveBeenCalledTimes(2);
   });
@@ -106,11 +116,13 @@ describe('payment scheduler', () => {
     scheduler = startPaymentScheduler();
     await vi.advanceTimersByTimeAsync(0);
     expect(mockGenerate).not.toHaveBeenCalled();
+    expect(mockScan).not.toHaveBeenCalled();
     expect(jobLogger.error).toHaveBeenCalledOnce();
 
     env.paymentTimeZone = 'America/Costa_Rica';
     await vi.advanceTimersByTimeAsync(HOUR);
     expect(mockGenerate).toHaveBeenCalledExactlyOnceWith('2026-10-14');
+    expect(mockScan).toHaveBeenCalledExactlyOnceWith('2026-10-14');
   });
 
   it('stops new intervals immediately but waits for the active run', async () => {
@@ -127,6 +139,7 @@ describe('payment scheduler', () => {
     held.resolve();
     await stopping;
     expect(finished).toBe(true);
+    expect(mockScan).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(HOUR);
     expect(mockGenerate).toHaveBeenCalledTimes(1);
   });
@@ -140,5 +153,66 @@ describe('payment scheduler', () => {
 
     expect(mockGenerate).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['promise rejection', 'synchronous throw'])('isolates a scan %s and retries next hour', async (failure) => {
+    const error = Object.assign(new Error('private-error-details'), { code: 'private-code-details' });
+    if (failure === 'promise rejection') mockScan.mockRejectedValueOnce(error);
+    else mockScan.mockImplementationOnce(() => { throw error; });
+    scheduler = startPaymentScheduler();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(mockGenerate).toHaveBeenCalledOnce();
+    expect(jobLogger.error).toHaveBeenCalledExactlyOnceWith('Scheduled overdue notification scan failed; next run will retry', { code: undefined });
+    expect(JSON.stringify(jobLogger.error.mock.calls)).not.toContain('private-');
+    await vi.advanceTimersByTimeAsync(HOUR);
+    expect(mockGenerate).toHaveBeenCalledTimes(2);
+    expect(mockScan).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the cycle reserved while the scan is pending and waits for it at shutdown', async () => {
+    const held = pendingRun();
+    mockScan.mockReturnValueOnce(held.promise);
+    scheduler = startPaymentScheduler();
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    expect(mockGenerate).toHaveBeenCalledTimes(1);
+    expect(mockScan).toHaveBeenCalledTimes(1);
+
+    let stopped = false;
+    const stopping = scheduler.stop().then(() => { stopped = true; });
+    await vi.advanceTimersByTimeAsync(HOUR);
+    expect(stopped).toBe(false);
+    expect(mockGenerate).toHaveBeenCalledTimes(1);
+    held.resolve();
+    await stopping;
+    expect(stopped).toBe(true);
+    await vi.advanceTimersByTimeAsync(HOUR);
+    expect(mockScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes on the next interval once a slow scan completes', async () => {
+    const held = pendingRun();
+    mockScan.mockReturnValueOnce(held.promise);
+    scheduler = startPaymentScheduler();
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    expect(mockGenerate).toHaveBeenCalledTimes(1);
+    expect(mockScan).toHaveBeenCalledTimes(1);
+
+    held.resolve();
+    await vi.advanceTimersByTimeAsync(HOUR);
+    expect(mockGenerate).toHaveBeenCalledTimes(2);
+    expect(mockScan).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes the same calendar day to both jobs even if midnight passes during generation', async () => {
+    const held = pendingRun();
+    mockGenerate.mockReturnValueOnce(held.promise);
+    vi.setSystemTime(new Date('2026-10-15T05:59:00.000Z'));
+    scheduler = startPaymentScheduler();
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    held.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mockGenerate).toHaveBeenCalledExactlyOnceWith('2026-10-14');
+    expect(mockScan).toHaveBeenCalledExactlyOnceWith('2026-10-14');
   });
 });

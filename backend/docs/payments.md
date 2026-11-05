@@ -224,8 +224,9 @@ cliente simulado; no ejecutan generación global sobre una base real.
 ## Generación programada (Fase 4, bloque 7)
 
 El servidor inicia el scheduler después de comprobar la conexión y aplicar las
-migraciones pendientes. Ejecuta una corrida inicial y vuelve a llamar al servicio
-generador cada hora mediante `setInterval`, sin dependencias adicionales.
+migraciones pendientes. Ejecuta una corrida inicial y repite cada hora mediante
+`setInterval`, sin dependencias adicionales. Cada ciclo intenta generar pagos y
+después revisar avisos de vencimiento usando la misma fecha local.
 
 Cada corrida calcula la fecha actual con `Intl.DateTimeFormat` y
 `PAYMENT_TIME_ZONE`, cuyo valor por defecto es `America/Costa_Rica`. La zona se
@@ -234,7 +235,8 @@ fechas de los pagos siguen siendo `YYYY-MM-DD`.
 
 Solo puede haber una corrida activa del scheduler por instancia del servidor.
 Si llega otro intervalo mientras sigue trabajando, se omite ese intento. Un
-fallo se captura y la siguiente corrida horaria vuelve a intentarlo sin detener
+fallo se captura por tarea: si falla la generación se intenta igualmente la
+revisión de vencimientos, y la siguiente corrida vuelve a intentarlo sin detener
 el servidor. Los logs del scheduler incluyen intervalo, zona y código de error;
 el generador existente registra los conteos de cada corrida.
 
