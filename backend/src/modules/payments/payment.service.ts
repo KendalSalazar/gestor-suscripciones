@@ -1,6 +1,7 @@
 import { pool } from '../../db/pool';
 import { AppError } from '../../middleware/errorHandler';
 import { lockGroupForWrite } from '../groups/group-lock';
+import { insertPaymentNotifications } from '../notifications/notification-writer';
 import { assertOwner, getActiveMembership } from '../subscriptions/membership';
 import type { PaymentFilters } from './payment.schemas';
 import { toPayment, type Payment, type PaymentRow } from './payment.types';
@@ -133,6 +134,13 @@ async function resolvePayment(
       );
 
     const result = toPayment(updated.rows[0]);
+    if (group.type === 'personal' && status === 'confirmed' && result.priceChanged) {
+      await insertPaymentNotifications(client, {
+        paymentId: result.id,
+        type: 'amount_changed',
+        recipientIds: [userId],
+      });
+    }
     await client.query('COMMIT');
     return result;
   } catch (error) {

@@ -38,6 +38,13 @@ type StoredShare = {
   status: string;
   confirmed_at: string | null;
 };
+type StoredNotification = {
+  id: string;
+  payment_id: string;
+  user_id: string;
+  type: string;
+  read_at: string | null;
+};
 
 describeWithDatabase('family payment generation with isolated real PostgreSQL', () => {
   const schema = `phase5_test_${randomUUID().replaceAll('-', '')}`;
@@ -68,7 +75,7 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
       if (current.rows[0].name !== schema) throw new Error('Unexpected PostgreSQL search_path');
       await client.query('BEGIN');
       const directory = path.join(__dirname, '../../db/migrations');
-      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-8]_.*\.sql$/.test(name)).sort()) {
+      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-9]_.*\.sql$/.test(name)).sort()) {
         const source = fs.readFileSync(path.join(directory, filename), 'utf8');
         // PostgreSQL 16 has gen_random_uuid; never change a database-wide extension.
         await client.query(source.replace(/^CREATE EXTENSION IF NOT EXISTS pgcrypto;\r?\n/, ''));
@@ -162,6 +169,15 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
     )).rows[0].next_date;
   }
 
+  async function notifications(fixture: Fixture): Promise<StoredNotification[]> {
+    return (await database.query<StoredNotification>(
+      `SELECT n.id, n.payment_id, n.user_id, n.type, n.read_at::text
+       FROM notifications n JOIN payments p ON p.id = n.payment_id
+       WHERE p.subscription_id = $1 ORDER BY p.expected_date, n.user_id, n.type`,
+      [fixture.subscriptionId],
+    )).rows;
+  }
+
   async function snapshot(fixture: Fixture): Promise<string> {
     return (await database.query<{ snapshot: string }>(
       `SELECT jsonb_build_object(
@@ -169,7 +185,9 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
          'payments', (SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id), '[]'::jsonb)
                       FROM payments p WHERE p.subscription_id = $1),
          'shares', (SELECT COALESCE(jsonb_agg(to_jsonb(ps) ORDER BY ps.id), '[]'::jsonb)
-                    FROM payment_shares ps JOIN payments p ON p.id = ps.payment_id WHERE p.subscription_id = $1)
+                    FROM payment_shares ps JOIN payments p ON p.id = ps.payment_id WHERE p.subscription_id = $1),
+         'notifications', (SELECT COALESCE(jsonb_agg(to_jsonb(n) ORDER BY n.id), '[]'::jsonb)
+                           FROM notifications n JOIN payments p ON p.id = n.payment_id WHERE p.subscription_id = $1)
        )::text AS snapshot`, [fixture.subscriptionId],
     )).rows[0].snapshot;
   }
@@ -217,6 +235,11 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
        FROM payment_shares ps JOIN payments p ON p.id = ps.payment_id WHERE p.subscription_id = $1`, [fixture.subscriptionId],
     );
     expect(totals.rows).toEqual([{ amount: '10.00', percentage: '100.0000' }]);
+    expect((await notifications(fixture)).map(({ payment_id, user_id, type, read_at }) => (
+      { payment_id, user_id, type, read_at }
+    ))).toEqual([...fixture.userIds].sort().map((user_id) => ({
+      payment_id: stored.payments[0].id, user_id, type: 'payment_due', read_at: null,
+    })));
     expect(await billingDate(fixture)).toBe('2026-11-15');
     expect(await snapshot(untouched)).toBe(untouchedBefore);
   });
@@ -227,8 +250,69 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
     expect(await photo(fixture)).toEqual({
       payments: [expect.objectContaining({ expected_amount: '17.99', status: 'pending' })], shares: [],
     });
+    expect(await notifications(fixture)).toEqual([expect.objectContaining({
+      user_id: fixture.userIds[0], type: 'payment_due', read_at: null,
+    })]);
     expect(await billingDate(fixture)).toBe('2026-11-15');
   });
+
+  it('does not send notices or shares to invited and removed family members', async () => {
+    const fixture = await createFixture();
+    const invited = await createUser();
+    const removed = await createUser();
+    await database.query(
+      `INSERT INTO group_members (group_id, user_id, role, status)
+       VALUES ($1, $2, 'member', 'invited'), ($1, $3, 'member', 'removed')`,
+      [fixture.groupId, invited, removed],
+    );
+
+    await generate(fixture);
+
+    expect((await photo(fixture)).shares.map((share) => share.user_id)).toEqual([...fixture.userIds].sort());
+    expect((await notifications(fixture)).map((notice) => notice.user_id)).toEqual([...fixture.userIds].sort());
+  });
+
+  it.each(['missing owner membership', 'owner mismatch'] as const)(
+    'rolls back a newly generated personal payment with %s', async (problem) => {
+      const fixture = await createFixture({ type: 'personal' });
+      if (problem === 'missing owner membership') {
+        await database.query(
+          "UPDATE group_members SET role = 'member', status = 'removed' WHERE group_id = $1 AND user_id = $2",
+          [fixture.groupId, fixture.userIds[0]],
+        );
+      } else {
+        const differentOwner = await createUser();
+        await database.query('UPDATE groups SET owner_id = $2 WHERE id = $1', [fixture.groupId, differentOwner]);
+      }
+      const before = await snapshot(fixture);
+
+      await expect(generate(fixture)).rejects.toThrow('Personal payment generation requires a valid active owner');
+
+      expect(await snapshot(fixture)).toBe(before);
+      expect(await notifications(fixture)).toEqual([]);
+    },
+  );
+
+  it.each(['personal', 'family'] as const)(
+    'rolls back the %s payment, shares and date if notification insertion fails', async (type) => {
+      const fixture = await createFixture({ type });
+      const before = await snapshot(fixture);
+      // Only this private test schema is altered; older fixture rows remain valid.
+      await database.query(`ALTER TABLE notifications ADD CONSTRAINT phase6_forced_notice_failure
+                            CHECK (type <> 'payment_due'::notification_type) NOT VALID`);
+      try {
+        await expect(generate(fixture)).rejects.toMatchObject({
+          code: '23514', constraint: 'phase6_forced_notice_failure',
+        });
+        expect(await snapshot(fixture)).toBe(before);
+        expect(await notifications(fixture)).toEqual([]);
+      } finally {
+        await database.query('ALTER TABLE notifications DROP CONSTRAINT phase6_forced_notice_failure');
+      }
+      expect((await generate(fixture)).paymentsCreated).toBe(1);
+      expect(await notifications(fixture)).toHaveLength(fixture.userIds.length);
+    },
+  );
 
   it.each([
     ['0.00', ['0.00', '0.00', '0.00']],
@@ -250,6 +334,8 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
     for (const payment of stored.payments) {
       expect(stored.shares.filter((share) => share.payment_id === payment.id).map((share) => share.user_id))
         .toEqual([...fixture.userIds].sort());
+      expect((await notifications(fixture)).filter((notice) => notice.payment_id === payment.id).map((notice) => notice.user_id))
+        .toEqual([...fixture.userIds].sort());
     }
     expect(await billingDate(fixture)).toBe('2026-11-15');
   });
@@ -262,6 +348,10 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
     await database.query(
       "UPDATE payment_shares SET status = 'confirmed', actual_amount = '4.00', confirmed_at = NOW() WHERE id = $1",
       [confirmedShare.id],
+    );
+    await database.query(
+      "UPDATE notifications SET read_at = '2026-10-16T12:00:00Z' WHERE payment_id = $1 AND user_id = $2",
+      [stored.payments[0].id, confirmedShare.user_id],
     );
     const newcomer = await createUser();
     const client = await database.connect();
@@ -282,12 +372,34 @@ describeWithDatabase('family payment generation with isolated real PostgreSQL', 
       client.release();
     }
     const before = await photo(fixture);
+    const notificationsBefore = await notifications(fixture);
     expect(await generate(fixture)).toEqual({ subscriptionsProcessed: 1, paymentsCreated: 0, subscriptionsStillDue: 0 });
     expect(await photo(fixture)).toEqual(before);
+    expect(await notifications(fixture)).toEqual(notificationsBefore);
     expect(await billingDate(fixture)).toBe('2026-11-15');
     expect(await generate(fixture)).toEqual({ subscriptionsProcessed: 0, paymentsCreated: 0, subscriptionsStillDue: 0 });
     expect(await photo(fixture)).toEqual(before);
+    expect(await notifications(fixture)).toEqual(notificationsBefore);
   });
+
+  it.each(['personal', 'family'] as const)(
+    'does not backfill an initial notice for a preexisting %s payment', async (type) => {
+      const fixture = await createFixture({ type });
+      await generate(fixture);
+      // Simulate a payment created before notifications existed, within this private schema.
+      await database.query(
+        `DELETE FROM notifications WHERE payment_id IN
+         (SELECT id FROM payments WHERE subscription_id = $1)`, [fixture.subscriptionId],
+      );
+      await database.query("UPDATE subscriptions SET next_billing_date = '2026-10-15' WHERE id = $1", [fixture.subscriptionId]);
+      const before = await photo(fixture);
+
+      expect((await generate(fixture)).paymentsCreated).toBe(0);
+
+      expect(await photo(fixture)).toEqual(before);
+      expect(await notifications(fixture)).toEqual([]);
+    },
+  );
 
   it.each(['confirmed', 'skipped'] as const)('preserves an existing %s payment and its resolved shares', async (status) => {
     const fixture = await createFixture();

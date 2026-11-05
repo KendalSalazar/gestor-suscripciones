@@ -1,6 +1,7 @@
 import type { PoolClient, QueryResultRow } from 'pg';
 import { jobLogger } from '../../config/logger';
 import { pool } from '../../db/pool';
+import { insertPaymentNotifications } from '../notifications/notification-writer';
 import type { BillingCycle } from '../subscriptions/subscription.types';
 import { nextBillingDate } from './billing-date';
 import { splitPaymentEqually } from './payment-sharing';
@@ -71,6 +72,7 @@ export async function runDuePayments(
 
     const groupsById = new Map(groups.rows.map((group) => [group.id, group]));
     const familyParticipants = new Map<string, string[]>();
+    const verifiedPersonalOwners = new Set<string>();
     let paymentsCreated = 0;
     let subscriptionsStillDue = 0;
 
@@ -112,7 +114,24 @@ export async function runDuePayments(
               [payment.id, allocation.map((share) => share.userId),
                 allocation.map((share) => share.shareAmount), allocation.map((share) => share.sharePercentage)],
             );
+          } else if (!verifiedPersonalOwners.has(group.id)) {
+            // Personal payments have no share snapshot, so verify the owner that
+            // will receive the notice while this transaction holds the group lock.
+            const owner = await client.query<{ user_id: string }>(
+              `SELECT user_id FROM group_members
+               WHERE group_id = $1 AND user_id = $2 AND role = 'owner' AND status = 'active'`,
+              [group.id, group.owner_id],
+            );
+            if (owner.rows.length !== 1) {
+              throw new Error('Personal payment generation requires a valid active owner');
+            }
+            verifiedPersonalOwners.add(group.id);
           }
+          await insertPaymentNotifications(client, {
+            paymentId: payment.id,
+            type: 'payment_due',
+            recipientIds: participants ?? [group.owner_id],
+          });
         } else if (participants) {
           // A retry must validate the saved photo, never rebuild it using today's
           // membership or cost. Resolved shares and their actual amounts stay untouched.

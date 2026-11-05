@@ -22,9 +22,10 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     payments = await import('./payment.service');
     subscriptions = await import('../subscriptions/subscription.service');
     const migration = await database.query(
-      'SELECT filename FROM schema_migrations WHERE filename = $1', ['006_create_payments.sql'],
+      'SELECT filename FROM schema_migrations WHERE filename = ANY($1::text[])',
+      [['006_create_payments.sql', '009_create_notifications.sql']],
     );
-    if (migration.rows.length !== 1) throw new Error('Apply migration 006 before running database tests');
+    if (migration.rows.length !== 2) throw new Error('Apply migrations 006 and 009 before running database tests');
 
     for (const [id, label] of [[ownerId, 'owner'], [memberId, 'member']]) {
       await database.query(
@@ -58,6 +59,10 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     if (!database) return;
     try {
       // Every cleanup query is limited to UUIDs created exclusively for this suite.
+      await database.query(
+        `DELETE FROM notifications n USING payments p
+         WHERE n.payment_id = p.id AND p.subscription_id = ANY($1::uuid[])`, [subscriptionIds],
+      );
       await database.query('DELETE FROM payments WHERE subscription_id = ANY($1::uuid[])', [subscriptionIds]);
       await database.query('DELETE FROM subscriptions WHERE id = ANY($1::uuid[])', [subscriptionIds]);
       await database.query('DELETE FROM group_members WHERE group_id = ANY($1::uuid[])', [[groupId, otherGroupId]]);
@@ -85,10 +90,12 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     expect(result).toMatchObject({ expectedAmount: '17.99', actualAmount: '17.99', priceChanged: false, status: 'confirmed' });
     expect(result.resolvedAt).not.toBeNull();
     expect((await subscriptions.getSubscription(ownerId, groupId, subscriptionId)).expectedCost).toBe('25.00');
+    expect((await database.query('SELECT id FROM notifications WHERE payment_id = $1', [id])).rows).toEqual([]);
   });
 
   it.each([
-    ['17.90', '17.9', false], ['9999999999.99', '9999999999.98', true], ['17.99', '0', true],
+    ['17.90', '17.9', false], ['17.99', '18.00', true],
+    ['9999999999.99', '9999999999.98', true], ['17.99', '0', true], ['0.00', '0', false],
   ])('compares expected %s and actual %s with NUMERIC', async (expected, actual, changed) => {
     const id = await pendingPayment(expected);
     const result = await payments.confirmPayment(ownerId, groupId, id, actual);
@@ -97,6 +104,9 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     const stored = await database.query<{ actual_amount: string }>('SELECT actual_amount FROM payments WHERE id = $1', [id]);
     expect(result.actualAmount).toBe(stored.rows[0].actual_amount);
     await expect(payments.skipPayment(ownerId, groupId, id)).rejects.toMatchObject({ status: 409 });
+    await expect(payments.confirmPayment(ownerId, groupId, id, actual)).rejects.toMatchObject({ status: 409 });
+    const notices = await database.query('SELECT user_id, type FROM notifications WHERE payment_id = $1', [id]);
+    expect(notices.rows).toEqual(changed ? [{ user_id: ownerId, type: 'amount_changed' }] : []);
   });
 
   it('skips once and preserves the payment history', async () => {
@@ -106,6 +116,7 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     expect(result.resolvedAt).not.toBeNull();
     await expect(payments.skipPayment(ownerId, groupId, id)).rejects.toMatchObject({ status: 409 });
     await expect(payments.confirmPayment(ownerId, groupId, id)).rejects.toMatchObject({ status: 409 });
+    expect((await database.query('SELECT id FROM notifications WHERE payment_id = $1', [id])).rows).toEqual([]);
   });
 
   it('allows only one resolution when confirm and skip run concurrently', async () => {

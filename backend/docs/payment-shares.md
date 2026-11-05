@@ -137,6 +137,15 @@ Al cerrar se asignan la suma real exacta, resolvedAt y priceChanged comparando e
 total registrado con expectedAmount. Esa diferencia no actualiza la tarifa de
 la suscripción ni demuestra por sí sola un cambio de precio del proveedor.
 
+Si el total final difiere del previsto, se guarda un aviso interno
+`amount_changed` para el owner activo en el momento del cierre, aunque esa
+persona no formara parte de la foto original. Una parte confirmada mientras otras
+siguen pendientes no genera por sí sola este aviso; tampoco se genera si las
+diferencias de las partes se compensan y el total coincide con el previsto.
+La última parte, el cierre del pago y el aviso se guardan en una sola transacción:
+si falla la inserción del aviso, se revierten esos cambios. El centro donde se
+consultarán los avisos corresponde a un bloque posterior.
+
 El bloqueo serializa confirmaciones simultáneas. Dos intentos sobre la misma
 parte producen una confirmación y un conflicto; las últimas partes distintas
 cierran el pago una sola vez. Cualquier fallo antes del commit revierte los

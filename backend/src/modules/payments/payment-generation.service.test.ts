@@ -25,6 +25,8 @@ beforeEach(() => {
   mockQuery.mockReset().mockImplementation(async (sql: string) => (
     sql.includes('INSERT INTO payments')
       ? { rows: [{ id: paymentId }], rowCount: 1 }
+      : sql.includes('FROM group_members')
+        ? { rows: [{ user_id: group.owner_id }], rowCount: 1 }
       : { rows: [], rowCount: 0 }
   ));
   mockRelease.mockReset();
@@ -127,6 +129,41 @@ describe('payment generation selection and transaction boundaries without Postgr
       [subscriptionId, '2022-01-31', 31, groupId]);
   });
 
+  it('creates an initial notice for the active owner inside the payment transaction', async () => {
+    selectDue();
+
+    await runDuePayments('2026-10-31', subscriptionId);
+
+    const ownerCall = mockQuery.mock.calls.find(([sql]) => sql.includes('FROM group_members'));
+    expect(ownerCall?.[1]).toEqual([groupId, group.owner_id]);
+    const noticeCall = mockQuery.mock.calls.find(([sql]) => sql.includes('INSERT INTO notifications'));
+    expect(noticeCall?.[1]).toEqual([paymentId, 'payment_due', [group.owner_id]]);
+    expect(mockQuery.mock.calls.findIndex(([sql]) => sql.includes('INSERT INTO notifications')))
+      .toBeLessThan(mockQuery.mock.calls.findIndex(([sql]) => sql === 'COMMIT'));
+  });
+
+  it('does not create an initial notice for a preexisting personal payment', async () => {
+    selectDue();
+    mockQuery.mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+
+    expect((await runDuePayments('2026-10-31', subscriptionId)).paymentsCreated).toBe(0);
+    expect(mockQuery.mock.calls.some(([sql]) => sql.includes('INSERT INTO notifications'))).toBe(false);
+    expect(mockQuery.mock.calls.some(([sql]) => sql.includes('FROM group_members'))).toBe(false);
+  });
+
+  it('rolls back if a newly created personal payment has no matching active owner', async () => {
+    selectDue();
+    mockQuery.mockImplementation(async (sql: string) => (
+      sql.includes('INSERT INTO payments') ? { rows: [{ id: paymentId }], rowCount: 1 } : { rows: [], rowCount: 0 }
+    ));
+
+    await expect(runDuePayments('2026-10-31', subscriptionId))
+      .rejects.toThrow('Personal payment generation requires a valid active owner');
+    expect(mockQuery.mock.calls.some(([sql]) => sql.includes('INSERT INTO notifications'))).toBe(false);
+    expect(mockQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+  });
+
   it('rolls back and releases the client if group discovery fails', async () => {
     const failure = new Error('Group selection failed');
     mockQuery.mockResolvedValueOnce({ rows: [] }).mockRejectedValueOnce(failure);
@@ -140,9 +177,13 @@ describe('payment generation selection and transaction boundaries without Postgr
   it('does not report success when advancing the date fails, even if rollback also fails', async () => {
     selectDue();
     const failure = new Error('Date update failed');
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: paymentId }], rowCount: 1 })
-      .mockRejectedValueOnce(failure)
-      .mockRejectedValueOnce(new Error('Rollback failed'));
+    mockQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('UPDATE subscriptions')) throw failure;
+      if (sql === 'ROLLBACK') throw new Error('Rollback failed');
+      if (sql.includes('INSERT INTO payments')) return { rows: [{ id: paymentId }], rowCount: 1 };
+      if (sql.includes('FROM group_members')) return { rows: [{ user_id: group.owner_id }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
 
     await expect(runDuePayments('2026-10-31', subscriptionId)).rejects.toBe(failure);
     expect(mockQuery).toHaveBeenLastCalledWith('ROLLBACK');

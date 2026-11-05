@@ -49,6 +49,10 @@ describeWithDatabase('payment generation with PostgreSQL', () => {
     if (!database) return;
     try {
       if (subscriptionId) {
+        await database.query(
+          `DELETE FROM notifications WHERE payment_id IN
+           (SELECT id FROM payments WHERE subscription_id = $1)`, [subscriptionId],
+        );
         await database.query('DELETE FROM payments WHERE subscription_id = $1', [subscriptionId]);
         await database.query('DELETE FROM subscriptions WHERE id = $1', [subscriptionId]);
       }
@@ -82,6 +86,15 @@ describeWithDatabase('payment generation with PostgreSQL', () => {
       { expected_date: '2026-09-15', expected_amount: '17.99' },
       { expected_date: '2026-10-15', expected_amount: '17.99' },
     ]);
+
+    const notifications = await database.query<{ user_id: string; type: string; expected_date: string }>(
+      `SELECT n.user_id, n.type, p.expected_date::text AS expected_date
+       FROM notifications n JOIN payments p ON p.id = n.payment_id
+       WHERE p.subscription_id = $1 ORDER BY p.expected_date`, [subscriptionId],
+    );
+    expect(notifications.rows).toEqual(['2026-08-15', '2026-09-15', '2026-10-15'].map((expected_date) => ({
+      user_id: userId, type: 'payment_due', expected_date,
+    })));
 
     const subscription = await database.query<{
       next_billing_date: string;

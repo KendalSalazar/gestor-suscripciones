@@ -1,6 +1,7 @@
 import { pool } from '../../db/pool';
 import { AppError } from '../../middleware/errorHandler';
 import { lockGroupForWrite } from '../groups/group-lock';
+import { insertPaymentNotifications } from '../notifications/notification-writer';
 import { getActiveMembership } from '../subscriptions/membership';
 import type { PaymentShareFilters } from './payment-share.schemas';
 import {
@@ -208,6 +209,22 @@ export async function confirmPaymentShare(
          RETURNING ${parentPaymentColumns}`, [groupId, paymentId, summary.confirmed_amount],
       );
       payment = updatedPayment.rows[0];
+      if (payment.payment_price_changed) {
+        // The group lock keeps ownership stable while we resolve the recipient.
+        const owner = await client.query<{ user_id: string }>(
+          `SELECT gm.user_id FROM groups g
+           JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = g.owner_id
+           WHERE g.id = $1 AND gm.role = 'owner' AND gm.status = 'active'`, [groupId],
+        );
+        if (owner.rows.length !== 1) {
+          throw new Error('Family payment confirmation requires a valid active owner');
+        }
+        await insertPaymentNotifications(client, {
+          paymentId,
+          type: 'amount_changed',
+          recipientIds: [owner.rows[0].user_id],
+        });
+      }
     }
 
     const result = {

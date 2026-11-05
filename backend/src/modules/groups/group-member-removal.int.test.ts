@@ -54,7 +54,7 @@ describeWithDatabase('family membership removal with real PostgreSQL and HTTP', 
       if (current.rows[0].name !== schema) throw new Error('Unexpected PostgreSQL search_path');
       await client.query('BEGIN');
       const directory = path.join(__dirname, '../../db/migrations');
-      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-8]_.*\.sql$/.test(name)).sort()) {
+      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-9]_.*\.sql$/.test(name)).sort()) {
         const source = fs.readFileSync(path.join(directory, filename), 'utf8');
         // PostgreSQL 16 provides gen_random_uuid without changing global extensions.
         await client.query(source.replace(/^CREATE EXTENSION IF NOT EXISTS pgcrypto;\r?\n/, ''));

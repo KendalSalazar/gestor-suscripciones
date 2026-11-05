@@ -1,4 +1,4 @@
-# Pagos — API, generación programada y dashboard (Fases 4 y 5)
+# Pagos — API, generación programada y dashboard (Fases 4 a 6)
 
 Fase 4 cerrada el 24 de octubre de 2026. Ver
 [evidencia y alcance de las comprobaciones](phase-4-verification.md).
@@ -8,6 +8,8 @@ su reparto. Las acciones de partes siguen el [plan vigente](../../prompts/plan-f
 Los bloques 7 y 8 permiten consultar [partes y reparto, y confirmar la parte propia](payment-shares.md),
 con el cierre agregado del pago al completar todas sus partes. El bloque 9
 permite omitir conjuntamente un pago familiar y sus partes pendientes.
+Los bloques 4 a 6 de Fase 6 añaden avisos internos al generar pagos nuevos y al
+confirmar pagos personales o familiares con un importe total diferente.
 
 ## Listar pagos de un grupo
 
@@ -86,6 +88,14 @@ ISO. `priceChanged` indica si el importe confirmado difiere del esperado;
 la comparación se hace con `NUMERIC` en PostgreSQL, por lo que `17.9` y `17.90`
 son iguales. El costo de la suscripción y el importe esperado del pago se conservan.
 
+Si el importe confirmado de un pago personal difiere del previsto, se guarda un
+aviso interno `amount_changed` para el owner que confirma. La diferencia puede
+ser mayor o menor; por sí sola no demuestra un cambio de precio del proveedor.
+El pago y el aviso se guardan en la misma transacción: si falla la inserción del
+aviso, la confirmación se revierte. Un importe igual o un pago omitido no generan
+este aviso. La respuesta HTTP conserva su formato; el centro donde se consultarán
+los avisos se implementará en un bloque posterior.
+
 ## Omitir un pago pendiente
 
 `POST /groups/:groupId/payments/:paymentId/skip` — solo owner activo.
@@ -147,7 +157,7 @@ Formato: `{ "error": { "message": string, "status": number } }`.
 | `409` | Pago resuelto, confirmación directa familiar, conjunto no apto para omitir o borrado con historial |
 | `500` | Error interno |
 
-## Generación familiar y recuperación de fechas (Fase 5, bloque 6)
+## Generación de pagos y avisos iniciales
 
 El generador inicia una transacción y bloquea hasta 100 grupos disponibles con
 suscripciones activas vencidas, ordenados por UUID. Usa `FOR UPDATE SKIP LOCKED`
@@ -155,13 +165,16 @@ para omitir grupos ocupados antes de consumir el cupo de suscripciones. Después
 relee y bloquea hasta 100 suscripciones en total dentro de esos grupos, por fecha
 e id. El filtro opcional `--subscription-id` se aplica en ambas selecciones.
 
-En personal crea el pago sin partes. En familia comprueba que existan entre uno
+En personal crea el pago sin partes y verifica que el owner indicado por el grupo
+tenga una membresía activa de owner. En familia comprueba que existan entre uno
 y veinte miembros activos, incluido un único owner coincidente con groups.owner_id.
 Con el grupo bloqueado, captura esos participantes y usa el reparto exacto para
 insertar una parte pending por persona, con importe previsto y porcentaje como
-decimales. El pago, las partes y el avance de next_billing_date se confirman juntos;
-un fallo revierte todos esos cambios. Se mantienen el día de referencia y el
-límite de 24 ciclos por suscripción y ejecución.
+decimales. Al insertar un pago nuevo, también crea un aviso interno `payment_due`:
+para el owner personal o para cada participante capturado en el reparto familiar.
+El pago, las partes, los avisos y el avance de next_billing_date se confirman juntos;
+un fallo al insertar cualquiera de ellos revierte el lote. Se mantienen el día de
+referencia y el límite de 24 ciclos por suscripción y ejecución.
 
 La foto corresponde a los miembros activos **al generar**, incluso al recuperar
 cobros atrasados. Entrar o salir después no redistribuye pagos ya creados. Ante
@@ -169,23 +182,26 @@ un conflicto de unicidad por suscripción/fecha, se conserva el pago existente.
 En familia se valida su reparto con el importe original y los UUID guardados,
 sin usar el coste ni la membresía actuales; no se cambian estados ni importes reales.
 Si falta una foto o sus cuotas son incoherentes, el lote falla sin repararla.
+Un pago que ya existía no genera un aviso inicial retroactivo. Los avisos
+guardados quedan en la base; su consulta en la interfaz llegará en otro bloque.
 
 La confirmación directa del padre familiar sigue devolviendo 409: cada persona
 confirma su propia parte. El owner puede omitir el conjunto mientras todas sus
 partes sigan pendientes, como se describe en la sección de omisión.
 
-Para una comprobación limitada, usar exclusivamente el UUID de una suscripción
-de prueba desde la raíz:
+Para una comprobación limitada, sustituir el UUID de ejemplo por el de una
+suscripción de prueba y ejecutar desde la raíz en PowerShell:
 
 ```powershell
-pnpm.cmd --dir backend payments:generate --subscription-id <uuid-de-prueba>
+$subscriptionIdPrueba = '11111111-1111-4111-8111-111111111111'
+pnpm.cmd --dir backend run payments:generate --subscription-id $subscriptionIdPrueba
 ```
 
 En el entorno Windows donde tsx no puede iniciar, el mismo comando compilado se
 puede ejecutar desde backend después de `pnpm.cmd build`:
 
 ```powershell
-node dist/modules/payments/generate-payments.cli.js --subscription-id <uuid-de-prueba>
+node dist/modules/payments/generate-payments.cli.js --subscription-id $subscriptionIdPrueba
 ```
 
 Ambos comandos usan el día de PAYMENT_TIME_ZONE y el runner existente. El CLI
@@ -194,14 +210,14 @@ pruebas con PostgreSQL de este bloque pasan siempre un UUID exclusivo de fixture
 
 `payment-generation-family.int.test.ts` comprueba el bloque con un Pool de
 PostgreSQL real dirigido a un esquema temporal exclusivo. Sustituye únicamente
-la conexión exportada, sin simular SQL. Sus 18 casos cubren cuotas, atrasos,
-reintentos, corrupción, compatibilidad personal y rollback por un CHECK de prueba
-instalado solo en ese esquema. También prueban SKIP LOCKED ante altas/bajas y una
+la conexión exportada, sin simular SQL. Sus casos cubren cuotas, atrasos,
+reintentos, avisos, corrupción, compatibilidad personal y rollback por CHECK de
+prueba instalados solo en ese esquema. También prueban SKIP LOCKED ante altas/bajas y una
 cadena de dos esperas observadas con pg_blocking_pids: el generador espera por la
 tabla de partes de prueba y una incorporación espera por el grupo del generador.
 Al terminar se elimina el esquema temporal y se cierran los pools.
 
-Los ocho unitarios de `payment-generation.service.test.ts` comprueban los filtros,
+Los unitarios de `payment-generation.service.test.ts` comprueban los filtros,
 el SQL de selección y los límites sin PostgreSQL. Sus llamadas sin UUID usan un
 cliente simulado; no ejecutan generación global sobre una base real.
 

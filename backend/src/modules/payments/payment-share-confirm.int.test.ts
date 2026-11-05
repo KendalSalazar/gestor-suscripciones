@@ -58,7 +58,7 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
       if (current.rows[0].name !== schema) throw new Error('Unexpected PostgreSQL search_path');
       await client.query('BEGIN');
       const directory = path.join(__dirname, '../../db/migrations');
-      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-8]_.*\.sql$/.test(name)).sort()) {
+      for (const filename of fs.readdirSync(directory).filter((name) => /^00[1-9]_.*\.sql$/.test(name)).sort()) {
         const source = fs.readFileSync(path.join(directory, filename), 'utf8');
         // PostgreSQL 16 supplies gen_random_uuid; do not change global extensions.
         await client.query(source.replace(/^CREATE EXTENSION IF NOT EXISTS pgcrypto;\r?\n/, ''));
@@ -168,9 +168,18 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
          'subscription', (SELECT to_jsonb(s) FROM subscriptions s WHERE s.id = $1),
          'payment', (SELECT to_jsonb(p) FROM payments p WHERE p.id = $2),
          'shares', (SELECT COALESCE(jsonb_agg(to_jsonb(ps) ORDER BY ps.id), '[]'::jsonb)
-                    FROM payment_shares ps WHERE ps.payment_id = $2)
+                    FROM payment_shares ps WHERE ps.payment_id = $2),
+         'notifications', (SELECT COALESCE(jsonb_agg(to_jsonb(n) ORDER BY n.id), '[]'::jsonb)
+                           FROM notifications n WHERE n.payment_id = $2)
        )::text AS snapshot`, [fixture.subscriptionId, fixture.paymentId],
     )).rows[0].snapshot;
+  }
+
+  async function differenceNotices(fixture: Fixture): Promise<{ user_id: string; type: string }[]> {
+    return (await database.query<{ user_id: string; type: string }>(
+      `SELECT user_id, type FROM notifications
+       WHERE payment_id = $1 AND type = 'amount_changed' ORDER BY user_id`, [fixture.paymentId],
+    )).rows;
   }
 
   async function request<T>(pathname: string, userId: string, body: object = {}): Promise<{ status: number; body: T }> {
@@ -277,6 +286,139 @@ describeWithDatabase('own payment share confirmation with real PostgreSQL and HT
     expect(last.share.actualAmount).toBe('0.10');
     expect(last.payment).toMatchObject({ expectedDate: '2090-01-01', actualAmount: '0.30', status: 'confirmed', priceChanged: false });
     expect(last.summary).toEqual({ totalShares: 2, confirmedShares: 2, confirmedAmount: '0.30' });
+  });
+
+  it.each([
+    ['lower', '0.15', '0.10', '0.25'],
+    ['higher', '0.20', '0.15', '0.35'],
+  ])('notifies the owner only after a %s family total is completed', async (_label, ownerAmount, memberAmount, total) => {
+    const fixture = await createFixture();
+    const partial = await confirm(fixture, 0, ownerAmount);
+    expect(partial.payment.status).toBe('pending');
+    expect(await differenceNotices(fixture)).toEqual([]);
+
+    const completed = await confirm(fixture, 1, memberAmount);
+    expect(completed.payment).toMatchObject({ status: 'confirmed', actualAmount: total, priceChanged: true });
+    expect(await differenceNotices(fixture)).toEqual([{ user_id: fixture.userIds[0], type: 'amount_changed' }]);
+    expect((await database.query('SELECT expected_cost FROM subscriptions WHERE id = $1', [fixture.subscriptionId])).rows)
+      .toEqual([{ expected_cost: '0.30' }]);
+  });
+
+  it('does not notify when differences in individual shares cancel out in the total', async () => {
+    const fixture = await createFixture();
+    expect((await confirm(fixture, 0, '0.20')).payment.status).toBe('pending');
+    expect(await differenceNotices(fixture)).toEqual([]);
+    expect((await confirm(fixture, 1, '0.10')).payment)
+      .toMatchObject({ status: 'confirmed', actualAmount: '0.30', priceChanged: false });
+    expect(await differenceNotices(fixture)).toEqual([]);
+  });
+
+  it('notifies the new owner without a share after ownership changes while confirmation waits', async () => {
+    const fixture = await createFixture();
+    await database.query(
+      `INSERT INTO group_members (group_id, user_id, role, status, joined_at)
+       VALUES ($1, $2, 'member', 'active', NOW())`, [fixture.groupId, fixture.outsiderId],
+    );
+    await confirm(fixture, 0);
+    const holder = await database.connect();
+    let holding = false;
+    let finished = false;
+    let attempted: Promise<{ ok: true; result: Confirmation } | { ok: false; error: unknown }> | undefined;
+    try {
+      await holder.query('BEGIN');
+      holding = true;
+      await holder.query('SELECT id FROM groups WHERE id = $1 FOR UPDATE', [fixture.groupId]);
+      const pid = (await holder.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      attempted = confirm(fixture, 1, '0.10').then(
+        (result) => { finished = true; return { ok: true as const, result }; },
+        (error: unknown) => { finished = true; return { ok: false as const, error }; },
+      );
+      await waitForGroupLock(pid, () => finished);
+      // Simulate the same ownership updates as the service under the group lock.
+      await holder.query("UPDATE group_members SET role = 'member' WHERE group_id = $1 AND user_id = $2",
+        [fixture.groupId, fixture.userIds[0]]);
+      await holder.query("UPDATE group_members SET role = 'owner' WHERE group_id = $1 AND user_id = $2",
+        [fixture.groupId, fixture.outsiderId]);
+      await holder.query('UPDATE groups SET owner_id = $2 WHERE id = $1', [fixture.groupId, fixture.outsiderId]);
+      await holder.query('COMMIT');
+      holding = false;
+      expect(await attempted).toMatchObject({ ok: true, result: { payment: {
+        status: 'confirmed', actualAmount: '0.25', priceChanged: true,
+      } } });
+      expect(await differenceNotices(fixture)).toEqual([{ user_id: fixture.outsiderId, type: 'amount_changed' }]);
+      expect((await database.query('SELECT id FROM payment_shares WHERE payment_id = $1 AND user_id = $2',
+        [fixture.paymentId, fixture.outsiderId])).rows).toEqual([]);
+    } finally {
+      try {
+        if (holding) await holder.query('ROLLBACK');
+      } finally {
+        holder.release();
+        if (attempted) await attempted;
+      }
+    }
+  }, 15_000);
+
+  it('creates one notice when the last two shares are confirmed concurrently', async () => {
+    const fixture = await createFixture({ count: 3 });
+    await confirm(fixture, 0, '0.09');
+    const results = await Promise.all([confirm(fixture, 1), confirm(fixture, 2)]);
+    expect(results.map((result) => result.payment.status).sort()).toEqual(['confirmed', 'pending']);
+    expect(results.find((result) => result.payment.status === 'confirmed')?.payment)
+      .toMatchObject({ actualAmount: '0.29', priceChanged: true });
+    expect(await differenceNotices(fixture)).toEqual([{ user_id: fixture.userIds[0], type: 'amount_changed' }]);
+    const before = await snapshot(fixture);
+    await expect(confirm(fixture, 1)).rejects.toMatchObject({ status: 409 });
+    expect(await snapshot(fixture)).toBe(before);
+  });
+
+  it('rolls back the last share if the group owner is inconsistent', async () => {
+    const fixture = await createFixture();
+    await confirm(fixture, 0);
+    await database.query('UPDATE groups SET owner_id = $2 WHERE id = $1', [fixture.groupId, fixture.outsiderId]);
+    const before = await snapshot(fixture);
+    await expect(confirm(fixture, 1, '0.10'))
+      .rejects.toThrow('Family payment confirmation requires a valid active owner');
+    expect(await snapshot(fixture)).toBe(before);
+    expect(await differenceNotices(fixture)).toEqual([]);
+  });
+
+  it('rolls back the last share and parent when the notice fails, preserving prior read history', async () => {
+    const fixture = await createFixture();
+    await confirm(fixture, 0);
+    await database.query(
+      `INSERT INTO notifications (user_id, payment_id, type, read_at)
+       VALUES ($1, $2, 'payment_due', '2090-01-02T12:00:00Z')`, [fixture.userIds[0], fixture.paymentId],
+    );
+    const before = await snapshot(fixture);
+    await database.query(`ALTER TABLE notifications ADD CONSTRAINT phase6_reject_difference_notice
+                          CHECK (type <> 'amount_changed'::notification_type) NOT VALID`);
+    try {
+      await expect(confirm(fixture, 1, '0.10')).rejects.toMatchObject({
+        code: '23514', constraint: 'phase6_reject_difference_notice',
+      });
+      expect(await snapshot(fixture)).toBe(before);
+      const observer = await database.connect();
+      try {
+        await observer.query('BEGIN');
+        await observer.query('SELECT id FROM groups WHERE id = $1 FOR UPDATE NOWAIT', [fixture.groupId]);
+        await observer.query('SELECT id FROM payments WHERE id = $1 FOR UPDATE NOWAIT', [fixture.paymentId]);
+        await observer.query('SELECT id FROM payment_shares WHERE id = $1 FOR UPDATE NOWAIT', [fixture.shareIds[1]]);
+        await observer.query('COMMIT');
+      } catch (error) {
+        await observer.query('ROLLBACK');
+        throw error;
+      } finally {
+        observer.release();
+      }
+    } finally {
+      await database.query('ALTER TABLE notifications DROP CONSTRAINT phase6_reject_difference_notice');
+    }
+    expect((await confirm(fixture, 1, '0.10')).payment).toMatchObject({ status: 'confirmed', priceChanged: true });
+    expect(await differenceNotices(fixture)).toEqual([{ user_id: fixture.userIds[0], type: 'amount_changed' }]);
+    const due = await database.query<{ read_at: Date }>(
+      "SELECT read_at FROM notifications WHERE payment_id = $1 AND type = 'payment_due'", [fixture.paymentId],
+    );
+    expect(due.rows[0].read_at.toISOString()).toBe('2090-01-02T12:00:00.000Z');
   });
 
   it('denies another person share to owner and member before checking whether it is resolved', async () => {
