@@ -87,6 +87,8 @@ function displayDate(value: string): string {
 
 export default function DashboardPage() {
   const selectedGroupIdRef = useRef<string | null>(null);
+  const lastAppliedContextRef = useRef<string | null>(null);
+  const resetContextWithoutQueryRef = useRef(false);
   const [pageState, setPageState] = useState<PageState>('loading');
   const [activeView, setActiveView] = useState<DashboardView>('subscriptions');
   const [viewVersions, setViewVersions] = useState<Record<DashboardView, number>>({ subscriptions: 0, payments: 0, family: 0 });
@@ -112,6 +114,89 @@ export default function DashboardPage() {
   const [subscriptionsVersion, setSubscriptionsVersion] = useState(0);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [editedCost, setEditedCost] = useState('');
+
+  const applyUrlContext = useCallback((availableGroups: Group[], currentPersonalGroupId: string, resetWithoutContext = false) => {
+    const currentUrl = new URL(window.location.href);
+    const params = currentUrl.searchParams;
+    const hasGroupContext = params.has('groupId');
+    const hasViewContext = params.has('view');
+
+    if (!hasGroupContext && !hasViewContext) {
+      if (resetWithoutContext) {
+        lastAppliedContextRef.current = null;
+        selectedGroupIdRef.current = currentPersonalGroupId;
+        setGroupId(currentPersonalGroupId);
+        setActiveView('subscriptions');
+        setViewVersions((current) => ({ ...current, subscriptions: current.subscriptions + 1 }));
+        setSubscriptionsVersion((current) => current + 1);
+        setForm(initialForm);
+        setFormError('');
+        setSubscriptionActionError('');
+        setEditingCostId(null);
+        setEditedCost('');
+        setGroupContextNotice('');
+      }
+      return;
+    }
+
+    const contextKey = currentUrl.search;
+    if (lastAppliedContextRef.current === contextKey) return;
+    lastAppliedContextRef.current = contextKey;
+
+    const requestedGroupId = params.get('groupId');
+    const requestedView = params.get('view');
+    const isUuid = requestedGroupId !== null
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedGroupId);
+    const group = isUuid ? availableGroups.find((candidate) => candidate.id === requestedGroupId) : undefined;
+    const view: DashboardView | null = requestedView === 'subscriptions' || requestedView === 'payments' || requestedView === 'family'
+      ? requestedView : null;
+    const isCompatibleView = view !== 'family' || group?.type === 'family';
+    const hasOnlyContextParams = [...params.keys()].every((key) => key === 'groupId' || key === 'view');
+
+    if (hasGroupContext && hasViewContext
+      && params.getAll('groupId').length === 1 && params.getAll('view').length === 1
+      && hasOnlyContextParams && isUuid && group && view !== null && isCompatibleView) {
+      if (selectedGroupIdRef.current !== group.id) {
+        selectedGroupIdRef.current = group.id;
+        setGroupId(group.id);
+        setForm(initialForm);
+        setFormError('');
+        setSubscriptionActionError('');
+        setEditingCostId(null);
+        setEditedCost('');
+      }
+      setActiveView(view);
+      setViewVersions((current) => ({ ...current, [view]: current[view] + 1 }));
+      setSubscriptionsVersion((current) => current + 1);
+      setGroupContextNotice('');
+      return;
+    }
+
+    selectedGroupIdRef.current = currentPersonalGroupId;
+    setGroupId(currentPersonalGroupId);
+    setActiveView('subscriptions');
+    setViewVersions((current) => ({ ...current, subscriptions: current.subscriptions + 1 }));
+    setSubscriptionsVersion((current) => current + 1);
+    setForm(initialForm);
+    setFormError('');
+    setSubscriptionActionError('');
+    setEditingCostId(null);
+    setEditedCost('');
+    setGroupContextNotice('El enlace apuntaba a un espacio o vista no disponible. Volvimos a tus suscripciones personales.');
+    window.history.replaceState(window.history.state, '', `${currentUrl.pathname}${currentUrl.hash}`);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (!personalGroupId) return;
+      lastAppliedContextRef.current = null;
+      resetContextWithoutQueryRef.current = true;
+      setGroupsState('loading');
+      setGroupsVersion((current) => current + 1);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [applyUrlContext, personalGroupId]);
 
   const handleSessionExpired = useCallback(() => {
     session.setAccessToken(null);
@@ -176,6 +261,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (pageState !== 'ready' || !personalGroupId) return;
+    const currentPersonalGroupId = personalGroupId;
     const controller = new AbortController();
 
     async function loadGroups() {
@@ -187,12 +273,25 @@ export default function DashboardPage() {
         setGroupsState('ready');
         setGroupsError('');
         accessRefreshInFlight.current = false;
+        applyUrlContext(result.groups, currentPersonalGroupId, resetContextWithoutQueryRef.current);
+        resetContextWithoutQueryRef.current = false;
         if (!result.groups.some((group) => group.id === selectedGroupIdRef.current)) {
-          if (selectedGroupIdRef.current !== personalGroupId) {
+          if (selectedGroupIdRef.current !== currentPersonalGroupId) {
             setGroupContextNotice('Ya no tienes acceso a esa familia. Volvimos a tu grupo personal.');
           }
-          selectedGroupIdRef.current = personalGroupId;
-          setGroupId(personalGroupId);
+          selectedGroupIdRef.current = currentPersonalGroupId;
+          setGroupId(currentPersonalGroupId);
+          setActiveView('subscriptions');
+          setForm(initialForm);
+          setFormError('');
+          setSubscriptionActionError('');
+          setEditingCostId(null);
+          setEditedCost('');
+          const currentUrl = new URL(window.location.href);
+          if (currentUrl.searchParams.has('groupId') || currentUrl.searchParams.has('view')) {
+            window.history.replaceState(window.history.state, '', `${currentUrl.pathname}${currentUrl.hash}`);
+            lastAppliedContextRef.current = null;
+          }
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -208,7 +307,7 @@ export default function DashboardPage() {
 
     void loadGroups();
     return () => controller.abort();
-  }, [pageState, personalGroupId, groupsVersion, handleSessionExpired]);
+  }, [pageState, personalGroupId, groupsVersion, handleSessionExpired, applyUrlContext]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -440,6 +539,9 @@ export default function DashboardPage() {
           <div>
             <Link className="text-sm font-medium text-violet-700 hover:text-violet-900" href="/">
               ← Inicio
+            </Link>
+            <Link className="ml-5 text-sm font-medium text-violet-700 hover:text-violet-900" href="/notifications">
+              Notificaciones
             </Link>
             <p className="mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
               {isPersonalGroup ? 'Tu espacio personal' : selectedGroup?.name ?? 'Grupo familiar'}

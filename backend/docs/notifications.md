@@ -36,7 +36,11 @@ al apagar el servidor se espera a que termine el ciclo activo.
 
 **Arrancar el servidor inicia una revisión global**, que puede crear avisos en
 la base configurada. La ejecución manual limitada no inicia el ciclo horario.
-La visualización de avisos corresponde a un bloque posterior.
+Los avisos se consultan en el centro `/notifications`, que reutiliza la sesión
+existente y permite filtrar por grupo y estado, paginar y marcar un aviso como
+leído. El dashboard enlaza al centro y cada aviso puede abrir la vista de pagos
+del grupo asociado. Los permisos siguen dependiendo de la membresía activa; los
+parámetros de la URL no conceden acceso.
 
 ## Consultar avisos propios
 
@@ -75,3 +79,11 @@ La notificación debe pertenecer al usuario y a un grupo donde mantenga una
 membresía activa. Un identificador inexistente, ajeno o que haya dejado de ser
 visible devuelve 404 `Notification not found`. Parámetros o cuerpo inválidos
 producen 400 y una sesión ausente o inválida produce 401.
+
+## Comprobación de interfaz
+
+La interfaz muestra estados de carga, error y lista vacía; al marcar un aviso
+como leído vuelve a consultar la primera página para actualizar la lista y el
+conteo. La verificación automatizada cubre dos identidades en PostgreSQL aislado.
+La navegación manual en navegador con dos cuentas reales, teclado y ancho móvil
+sigue pendiente.
