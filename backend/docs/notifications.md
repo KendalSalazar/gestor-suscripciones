@@ -85,5 +85,6 @@ producen 400 y una sesión ausente o inválida produce 401.
 La interfaz muestra estados de carga, error y lista vacía; al marcar un aviso
 como leído vuelve a consultar la primera página para actualizar la lista y el
 conteo. La verificación automatizada cubre dos identidades en PostgreSQL aislado.
-La navegación manual en navegador con dos cuentas reales, teclado y ancho móvil
-sigue pendiente.
+El propietario confirmó el 15 de noviembre de 2026 el recorrido manual con dos
+cuentas, incluidos lectura independiente, navegación contextual, acceso al salir
+y volver al grupo, teclado y ancho móvil.

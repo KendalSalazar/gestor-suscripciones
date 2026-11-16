@@ -4,13 +4,13 @@ Plan para este proyecto individual de aprendizaje. **Un bloque pequeño por
 entrega**, con explicación, comprobación y parada antes de avanzar. El alcance
 está en [06-fase.md](../06-fase.md). No iniciar la Fase 7 durante estas entregas.
 
-**Estado al 5 de noviembre de 2026: bloques 1 a 16 implementados y regresión automatizada verificada. El propietario confirmó que los avisos de demostración se ven en la interfaz con su cuenta. La navegación manual con dos cuentas reales y las comprobaciones móvil/teclado siguen pendientes; la Fase 6 no se declara cerrada hasta completarlas.** El generador
+**Estado al 15 de noviembre de 2026: Fase 6 cerrada. Bloques 1 a 16 implementados, regresión automatizada aprobada y pruebas manuales confirmadas por el propietario, incluidas las realizadas con dos cuentas. La siguiente fase se enfocará en rediseñar el frontend por claridad y organización.** El generador
 guarda avisos iniciales y las confirmaciones personal y familiar avisan de
 importes diferentes. El detector de vencimientos dispone de CLI manual y está
 integrado en el ciclo horario; la API permite consultar y marcar avisos propios
 como leídos. El centro enlaza con las vistas del dashboard usando contexto
-validado; quedan pendientes las pruebas manuales de navegación y el recorrido
-con avisos visibles.
+validado; el propietario confirmó su recorrido en navegador y la persistencia
+independiente de lectura por cuenta.
 
 ## 0. Entrada contrastada con el repositorio
 
@@ -254,8 +254,8 @@ según `PAYMENT_TIME_ZONE`, la API y la interfaz se completarán en bloques post
 - [x] Suite completa con `RUN_DB_TESTS=1`: 1070 pruebas en 42 archivos; typecheck
   y build correctos. Los conteos de pagos, partes y avisos coincidieron con los
   iniciales y no quedaron esquemas temporales. Revisión independiente sin hallazgos.
-- [ ] Prueba manual dirigida del propietario con una suscripción de prueba; la
-  interfaz de notificaciones todavía no está disponible.
+- [x] El propietario ejecutó los comandos limitados por UUID para una suscripción
+  de prueba y confirmó que se generaron el pago y la notificación.
 
 El ciclo horario sigue pendiente del bloque 9; la modalidad global de la CLI
 es una acción manual deliberada y no se ejecutó durante esta entrega.
@@ -320,8 +320,8 @@ posteriores. El servidor de producción y el scheduler no se iniciaron para prob
   Typecheck y build correctos. Los conteos de pagos, partes y avisos en `public`
   coincidieron con los previos y no quedaron esquemas temporales.
 
-La interfaz y el recorrido manual con cuentas reales siguen pendientes. El
-contrato del POST se documenta en notifications.md.
+La interfaz y el recorrido manual con cuentas reales se completaron y confirmaron
+al cerrar la fase; el contrato del POST se documenta en notifications.md.
 
 ### Bloque 12 — Centro consultable (5 de noviembre de 2026)
 
@@ -338,9 +338,8 @@ contrato del POST se documenta en notifications.md.
   largos en móvil. No se inició el backend real ni su scheduler para esta entrega.
 - [x] Chrome headless con Next temporal y API simulada: sesión restaurada, aviso
   visible y fecha e importe esperados; se limpiaron procesos y datos temporales.
-- [ ] Comprobación en navegador con sesión real, filtros, paginación, errores y
-  móvil. La prueba simulada no ejercitó esas interacciones. Confirmar manualmente
-  antes de dar el bloque por cerrado.
+- [x] Comprobación manual en navegador con sesión real, filtros, paginación,
+  errores y móvil; el propietario confirmó el recorrido al cerrar la fase.
 
 La entrada es directa por `/notifications`. El enlace desde el dashboard
 corresponde al bloque 14.
@@ -355,10 +354,8 @@ corresponde al bloque 14.
   ya no está disponible y refresca; un 401 usa el flujo existente de sesión.
 - [x] Revisión independiente sin hallazgos. Lint, TypeScript y build frontend
   correctos. La compilación produce `/notifications` como ruta estática.
-- [ ] Verificar la acción en navegador con API real de prueba. La prueba temporal
-  con Chrome y API simulada no llegó a abrir Chrome: Next no entregó la página
-  dentro del límite de 22 segundos. No se ejecutó el POST en navegador; realizar
-  recorrido manual antes de cerrar el bloque.
+- [x] El propietario confirmó la acción en navegador con API real: lectura por
+  cuenta independiente y persistente al recargar.
 
 ### Bloque 14 — Navegación contextual (5 de noviembre de 2026)
 
@@ -370,9 +367,8 @@ corresponde al bloque 14.
 - [x] Atrás/adelante vuelve a consultar grupos antes de aplicar el contexto y
   limpiar borradores; la vista seleccionada activa su recarga. Lint, TypeScript
   y build correctos; la ruta `/dashboard` se generó en build.
-- [ ] Recorrer enlaces, parámetros inválidos/perdidos y navegación mientras el
-  dashboard permanece montado en navegador con dos cuentas. No se completó una
-  prueba visual o manual para este bloque.
+- [x] El propietario confirmó el recorrido manual de enlaces y navegación
+  contextual con dos cuentas, incluidos los casos de contexto inválido/perdido.
 
 ## 1. Comportamiento y decisiones de dominio
 
@@ -857,7 +853,7 @@ lint, exec tsc --noEmit y build. Activar RUN_DB_TESTS solo cuando corresponda y
 restaurarlo. No afirmar integración aprobada con tests omitidos o API simulada.
 Repetir la suite completa en el cierre, no en cada edición documental.
 
-### Bloque 16 — Cierre y regresión (5 de noviembre de 2026)
+### Bloque 16 — Cierre y regresión (15 de noviembre de 2026)
 
 - [x] Backend: `RUN_DB_TESTS=1 pnpm.cmd --dir backend test`; 46 archivos y
   1092 pruebas pasaron, incluidas las pruebas HTTP/PostgreSQL en esquemas aislados.
@@ -872,11 +868,10 @@ Repetir la suite completa en el cierre, no en cada edición documental.
   la suscripción familiar ni representa un cobro real.
 - [x] `backend/docs/notifications.md` describe el contrato, límites, interfaz y
   comandos con alcance limitado.
-- [ ] Navegación en navegador con dos cuentas reales, incluida la pérdida y
-  restitución de acceso, teclado, ancho móvil y sesión. La cuenta disponible es
-  una; la prueba automatizada con dos identidades no sustituye ese recorrido.
+- [x] El propietario confirmó las pruebas manuales con dos cuentas, pérdida y
+  restitución de acceso, teclado, ancho móvil y sesión. Fase 6 cerrada.
 
-## 11. Checklist final — pendiente de comprobaciones manuales
+## 11. Checklist final — completado
 
 - [x] Entrada y reglas revisadas contra el código y el cierre documentado de Fase 5.
 - [x] 009 aplicada una vez; repetición sin pendientes; constraints/índices comprobados.
@@ -892,12 +887,18 @@ Repetir la suite completa en el cierre, no en cada edición documental.
 - [x] Listado y conteo solo del destinatario y con membresía activa.
 - [x] Acción de lectura solo del destinatario y con membresía activa.
 - [x] Cursor y filtros permiten recorrer todo el listado sin truncamiento silencioso.
-- [x] Lectura idempotente, historial y pérdida/restitución de acceso comprobados por integración HTTP/PostgreSQL aislada; falta el recorrido manual con dos cuentas reales.
-- [ ] Centro y enlaces contextuales comprobados en navegador con dos cuentas reales.
+- [x] Lectura idempotente, historial y pérdida/restitución de acceso comprobados por integración HTTP/PostgreSQL aislada y pruebas manuales con dos cuentas reales.
+- [x] Centro y enlaces contextuales comprobados en navegador con dos cuentas reales.
 - [x] Enlaces contextuales y validación contra grupos activos implementados.
-- [ ] Estados, accesibilidad móvil/teclado, recarga y sesión conservados.
+- [x] Estados, accesibilidad móvil/teclado, recarga y sesión conservados; confirmado manualmente por el propietario.
 - [x] Acción para marcar como leído integrada con API, recarga y conteo.
 - [x] Dinero string, DATE y reglas de owner/member de Fase 5 preservados por la regresión automatizada.
 - [x] Pruebas pertinentes, integración PostgreSQL real en esquemas aislados, typecheck/lint/build y regresión registradas.
 - [x] Contrato notifications.md actualizado, límites y evidencia manual disponible documentados; también queda explícito lo que falta comprobar.
 - [x] Sin servicios de notificación externos ni secretos expuestos, y sin cambios a suscripciones existentes. Se conserva solo la fixture simbólica creada a petición del propietario para visualizar avisos. No se inició Fase 7.
+
+## Transición
+
+La siguiente fase se enfocará en rediseñar el frontend para mejorar la claridad
+y organización de la información. El plan detallado se elaborará antes de iniciar
+su implementación.

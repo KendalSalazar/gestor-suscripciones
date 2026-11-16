@@ -70,6 +70,35 @@ Las fases 1 a 3 están implementadas: migraciones `001` a `005`, autenticación,
 - La delegación conserva el alcance y los permisos de la tarea original. No autoriza adelantar bloques o fases, aplicar cambios externos ni realizar operaciones adicionales sobre datos. Los subagentes no deben crear otros subagentes por iniciativa propia.
 - El principal coordina e integra los resultados, contrasta los hallazgos y comunica brevemente qué se delegó y por qué. Entrega una explicación en español y las comprobaciones reales, manteniendo el objetivo de aprendizaje y la parada después de cada bloque.
 
+
+## Delegación de diseño frontend
+
+- Delega al subagente `frontend-designer` las tareas
+  que requieran diseño UX/UI, rediseño de pantallas,
+  mejoras visuales o creación de interfaces complejas.
+
+- El subagente debe utilizar la skill `frontend-design`
+  instalada para orientar sus decisiones de diseño.
+
+- Antes de implementar rediseños importantes, el
+  subagente debe presentar una propuesta visual y
+  esperar la aprobación del usuario.
+
+- Para cambios visuales pequeños, el agente principal
+  puede implementar directamente siguiendo las
+  convenciones existentes.
+
+- El subagente puede modificar componentes, estilos y
+  layouts dentro del alcance autorizado, pero no debe
+  alterar lógica de negocio, APIs ni contratos HTTP.
+
+- Después de implementar cambios significativos,
+  delega al subagente `reviewer` una revisión de
+  regresiones, accesibilidad e integración.
+
+- Evita delegaciones innecesarias o duplicadas.
+
+
 ## Comandos útiles
 
 Ejecuta los comandos desde la raíz usando `--dir` o desde el paquete correspondiente:
