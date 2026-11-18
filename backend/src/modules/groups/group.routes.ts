@@ -39,6 +39,14 @@ groupRouter.patch(
   groupController.update,
 );
 
+groupRouter.delete(
+  '/:groupId',
+  validate(groupParamsSchema, 'params'),
+  validate(groupQuerySchema, 'query'),
+  validate(groupListBodySchema),
+  groupController.remove,
+);
+
 groupRouter.get(
   '/:groupId/members',
   validate(groupParamsSchema, 'params'),

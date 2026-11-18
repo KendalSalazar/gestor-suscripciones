@@ -273,6 +273,12 @@ export default function InvitationRecipientPage() {
             <Link className="ui-button invitation-recipient-link" href="/dashboard">{finished === 'accepted' ? 'Ir al dashboard' : 'Volver al dashboard'}</Link>
           </div>
         )}
+
+        {!finished && (
+          <Link className="ui-button ui-button-secondary invitation-recipient-back" href="/dashboard">
+            Volver al dashboard
+          </Link>
+        )}
       </section>
     </main>
   );

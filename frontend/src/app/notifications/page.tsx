@@ -214,7 +214,6 @@ export default function NotificationsPage() {
         body: JSON.stringify({}),
       });
       if (!result) throw new Error('Respuesta vacía');
-      setActionFeedback({ notificationId: notice.id, message: 'Aviso marcado como leído.', isError: false });
       invalidateList();
       setVersion((current) => current + 1);
     } catch (error) {
@@ -343,7 +342,7 @@ export default function NotificationsPage() {
             </div>
           )}
           {listState === 'ready' && notices.length === 0 && (
-            <p className="notification-state notification-state-empty">
+            <p className="notification-state notification-state-empty" role="status">
               {status === 'all' && !groupId ? 'Todavía no tienes avisos.' : 'No hay avisos para estos filtros.'}
             </p>
           )}

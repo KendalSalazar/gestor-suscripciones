@@ -73,6 +73,14 @@ su permiso si entretanto el usuario dejó de ser owner activo.
 La operación modifica únicamente el nombre: conserva el tipo, el propietario,
 la fecha de creación y las membresías. Un owner de grupo personal recibe `409`.
 
+## Eliminar una familia
+
+`DELETE /groups/:groupId` devuelve `204` sin cuerpo. Solo un owner activo puede
+eliminar una familia; los grupos personales no se pueden eliminar por esta ruta.
+La operación es definitiva: en una transacción elimina invitaciones,
+notificaciones, partes, pagos, suscripciones, membresías y finalmente la
+familia. Si falla cualquiera de los pasos, todos los cambios se revierten.
+
 ## Listar miembros activos
 
 `GET /groups/:groupId/members` → `200 { "members": [...] }`.

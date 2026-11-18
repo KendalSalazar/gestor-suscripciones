@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { ApiError, apiWithSession } from '@/lib/api';
 
 type Group = {
@@ -44,6 +45,7 @@ function memberInitials(name: string): string {
 }
 
 export default function FamilyGroupsPanel({
+  createActionHost,
   createFamilyOpen,
   group,
   groupsReady,
@@ -55,11 +57,12 @@ export default function FamilyGroupsPanel({
   onWorkingChange,
   refreshVersion = 0,
 }: {
+  createActionHost: HTMLDivElement | null;
   createFamilyOpen: boolean;
   group: Group | null;
   groupsReady: boolean;
   onGroupUpdated: (group: Group, selectGroup?: boolean) => void;
-  onLeftGroup: () => void;
+  onLeftGroup: (notice?: string) => void;
   onCreateFamilyOpenChange: (open: boolean) => void;
   onRefreshGroups: () => void;
   onSessionExpired: () => void;
@@ -246,8 +249,34 @@ export default function FamilyGroupsPanel({
         return;
       }
       setActionError(error instanceof ApiError && error.status === 409
-        ? 'No puedes salir mientras tengas una parte pendiente de un pago pendiente. Resuelve esa parte e inténtalo de nuevo.'
+        ? 'No puedes salir mientras tengas una parte sin resolver. Resuélvela e inténtalo de nuevo.'
         : getActionError(error, 'No pudimos salir de la familia. Inténtalo de nuevo.'));
+    } finally {
+      setWorkingAction(null);
+      onWorkingChange(false);
+    }
+  }
+
+  async function deleteFamily() {
+    if (!group || !isOwner || workingAction || !groupsReady) return;
+    const confirmed = window.confirm(
+      `¿Eliminar definitivamente ${group.name}? Se borrarán la familia, sus suscripciones, todos los pagos y partes, las notificaciones y las invitaciones. Las demás personas perderán el acceso. Esta acción no se puede deshacer.`,
+    );
+    if (!confirmed) return;
+
+    setWorkingAction('delete');
+    onWorkingChange(true);
+    setActionError('');
+    setNotice('');
+    try {
+      await apiWithSession<null>(`/groups/${group.id}`, { method: 'DELETE' });
+      onLeftGroup('La familia y todos sus datos fueron eliminados. Volviste a tu espacio personal.');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        onSessionExpired();
+        return;
+      }
+      setActionError(getActionError(error, 'No pudimos eliminar la familia. Inténtalo de nuevo.'));
     } finally {
       setWorkingAction(null);
       onWorkingChange(false);
@@ -271,7 +300,7 @@ export default function FamilyGroupsPanel({
         return;
       }
       setActionError(error instanceof ApiError && error.status === 409
-        ? `${member.name} podría tener una parte pendiente de un pago pendiente. Esa obligación debe resolverse antes de retirar a la persona.`
+        ? `${member.name} podría tener una parte sin resolver. Esa obligación debe resolverse antes de retirar a la persona.`
         : getActionError(error, `No pudimos retirar a ${member.name}. Inténtalo de nuevo.`));
     } finally {
       setWorkingAction(null);
@@ -314,18 +343,21 @@ export default function FamilyGroupsPanel({
         </div>
       </div>
 
-      <section
-        aria-labelledby="family-create-heading"
-        className="family-create-panel"
-        hidden={!createFamilyOpen}
-        id="family-create-panel"
-      >
-        <div className="family-create-panel-heading">
-          <h3 id="family-create-heading">{group ? 'Crear otra familia' : 'Crear una familia'}</h3>
-          <p>{group ? 'Esta familia seguirá igual. La nueva se seleccionará al crearla.' : 'Tu espacio Personal seguirá igual. La nueva familia se seleccionará al crearla.'}</p>
-        </div>
-        {createFamilyForm}
-      </section>
+      {createActionHost && createPortal(
+        <section
+          aria-labelledby="family-create-heading"
+          className="family-create-panel"
+          hidden={!createFamilyOpen}
+          id="family-create-panel"
+        >
+          <div className="family-create-panel-heading">
+            <h3 id="family-create-heading">{group ? 'Crear otra familia' : 'Crear una familia'}</h3>
+            <p>{group ? 'Esta familia seguirá igual. La nueva se seleccionará al crearla.' : 'Tu espacio Personal seguirá igual. La nueva familia se seleccionará al crearla.'}</p>
+          </div>
+          {createFamilyForm}
+        </section>,
+        createActionHost,
+      )}
 
       {notice && <p className="ui-feedback family-notice" role="status">{notice}</p>}
       {actionError && <p className="ui-feedback ui-feedback-error family-action-error" role="alert">{actionError}</p>}
@@ -386,7 +418,7 @@ export default function FamilyGroupsPanel({
 
                 {isMember && (
                   <div className="family-admin-form">
-                    <p>Si tienes una parte pendiente de un pago pendiente, primero debes resolverla para poder salir.</p>
+                    <p>Si tienes una parte pendiente, primero debes resolverla para poder salir.</p>
                     <button
                       className="ui-button ui-button-danger"
                       disabled={workingAction !== null}
@@ -400,6 +432,23 @@ export default function FamilyGroupsPanel({
 
                 {group.role === 'owner' && (
                   <p className="family-admin-note">Para salir, primero transfiere la propiedad a otro miembro activo.</p>
+                )}
+
+                {isOwner && (
+                  <div className="family-admin-delete">
+                    <div>
+                      <strong>Eliminar familia</strong>
+                      <p>Se eliminarán también sus pagos, partes, suscripciones, notificaciones e invitaciones.</p>
+                    </div>
+                    <button
+                      className="ui-button ui-button-danger"
+                      disabled={workingAction !== null}
+                      onClick={() => void deleteFamily()}
+                      type="button"
+                    >
+                      {workingAction === 'delete' ? 'Eliminando…' : 'Eliminar familia y datos'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -433,7 +482,7 @@ export default function FamilyGroupsPanel({
               </button>
             </div>
           ) : members.members.length === 0 ? (
-            <p className="family-member-state">No hay miembros activos en esta familia.</p>
+            <p className="family-member-state" role="status">No hay miembros activos en esta familia.</p>
           ) : (
             <ul className="family-member-list">
               {members.members.map((member) => (
@@ -450,7 +499,7 @@ export default function FamilyGroupsPanel({
                   <p className="family-member-role">{member.role === 'owner' ? 'Responsable' : 'Miembro'}</p>
                   {isOwner && member.role !== 'owner' && (
                     <button
-                      className="family-member-remove min-h-9 w-fit rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      className="family-member-remove min-h-11 w-fit rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                       disabled={workingAction !== null}
                       onClick={() => void removeMember(member)}
                       type="button"

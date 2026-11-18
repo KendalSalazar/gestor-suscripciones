@@ -261,7 +261,7 @@ export default function InvitationsPanel({
             <button className="ui-button ui-button-secondary" onClick={reloadInvitations} type="button">Reintentar</button>
           </div>
         ) : invitations.invitations.length === 0 ? (
-          <p className="invitation-state invitation-state-empty">Todavía no hay invitaciones enviadas a esta familia.</p>
+          <p className="invitation-state invitation-state-empty" role="status">Todavía no hay invitaciones enviadas a esta familia.</p>
         ) : (
           <ul className="invitation-list">
             {invitations.invitations.map((invitation) => (

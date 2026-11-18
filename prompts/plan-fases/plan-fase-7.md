@@ -1,6 +1,6 @@
 # Plan Fase 7 — Rediseño visual y organización del frontend
 
-**Estado al 17 de noviembre de 2026: bloques 1 a 14 implementados. Familia e Invitaciones ya fueron revisadas por el propietario; Notificaciones y Acceso esperan revisión visual. Los bloques 15 a 18 siguen pendientes. El build de los bloques 13 y 14 no se pudo completar por la descarga de Geist desde Google Fonts; ESLint y TypeScript sí pasaron. Acento aprobado: #CF7FFF.**
+**Estado al 18 de noviembre de 2026: bloques 1 a 16 registrados. Bloque 17: las 1.092 pruebas backend pasan; siguen pendientes los recorridos UI con dos cuentas. Bloque 18: checks de cierre pasan; falta aceptación visual de Notificaciones/Acceso y matriz móvil/teclado. Familia e Invitaciones ya fueron revisadas. Builds 13/14 y 18 completan con red autorizada. Acento aprobado: #CF7FFF.**
 Alcance original en [07-fase.md](../07-fase.md). Una entrega por bloque, con
 explicación, comprobación y parada. Crear este plan no ejecuta sus bloques.
 
@@ -460,6 +460,57 @@ estática de `reviewer` sin hallazgos.
   no pudo descargar Geist/Geist Mono desde Google Fonts por falta de conexión.
   No hubo inspección en navegador; revisión visual del propietario pendiente.
 
+### Bloque 15 — Estados y textos (18 de noviembre de 2026)
+
+- [x] Se corrigió «Cargando tu espacio personal» porque el dashboard puede
+  restaurar también una familia. Se simplificó la explicación para salir de
+  una familia, quitando la repetición de «pendiente».
+- [x] Los estados vacíos de miembros, historiales de pagos, invitaciones y
+  notificaciones ahora se anuncian como `status` cuando aparecen tras cargar.
+- [x] Se aclararon también los mensajes de conflicto al salir o retirar a una
+  persona cuando hay una parte sin resolver.
+- [x] Sin cambios de handlers, datos o borradores. ESLint, TypeScript y
+  `git diff --check` aprobados; sin pruebas nuevas por no haber riesgo de lógica.
+
+### Bloque 16 — Móvil y teclado (18 de noviembre de 2026)
+
+- [x] El botón «Retirar miembro» alcanza el mínimo táctil de 44 px. El código
+  reserva espacio inferior para la navegación fija móvil; el enlace «Volver al
+  inicio» permanece fuera del área desplazable del menú lateral.
+- [x] ESLint, TypeScript y `git diff --check` aprobados. No se cambió lógica ni
+  contratos.
+- [ ] Inspección real a 360, 390, 768 y 1440 px, zoom 200 %, orden Tab, foco
+  visible, ventana baja y contenido bajo la barra fija. Chrome no respondió al
+  intento CDP; no se marca esta matriz como probada.
+
+### Bloque 17 — Regresión de flujos (18 de noviembre de 2026, parcial)
+
+- [x] `reviewer` realizó revisión estática de permisos por grupo/rol, borradores,
+  sesión, invitaciones, pagos y notificaciones. No detectó regresiones. Se
+  corrigieron dos mensajes redundantes en conflictos de salida/retiro.
+- [x] Frontend lint y TypeScript aprobados. Backend Vitest con
+  `RUN_DB_TESTS=1`: 46 archivos y 1.092 pruebas aprobadas, incluidas las de
+  integración con PostgreSQL aislado.
+- [ ] Recorridos críticos con dos cuentas y validación de escrituras/permisos
+  en navegador. No se afirma que esos recorridos pasaron ni que la matriz DB
+  esté completa.
+- Diagnóstico de acceso (18 de noviembre): la conclusión previa de PostgreSQL
+  inactivo era incorrecta. El entorno restringido no podía leer la configuración
+  de Docker ni acceder a su named pipe; por eso usaba el contexto `default`.
+  Fuera de esa restricción, `desktop-linux` funciona y el contenedor está activo.
+  `pg_isready`, consulta de solo lectura dentro del contenedor y conexión TCP
+  desde Node a `localhost:5432` con `.env.example` aprobadas. No se leyeron `.env`
+  reales ni se modificaron datos.
+
+### Bloque 18 — Cierre (18 de noviembre de 2026, parcial)
+
+- [x] Frontend lint, TypeScript y build aprobados. Backend typecheck y build
+  aprobados. Suite backend con DB: 1.092 pruebas aprobadas. `git diff --check`
+  aprobado; no se añadieron dependencias.
+- [ ] Dos cuentas, inspección visual en navegador, comparación antes/después y
+  aceptación de Notificaciones/Acceso, zoom, móvil y teclado siguen pendientes.
+  No se marca la fase cerrada hasta registrar esas comprobaciones.
+
 ## 1. Resultado deseado y límites
 
 En cada pantalla se debe poder responder: «¿dónde estoy?», «¿para qué espacio?»
@@ -606,9 +657,11 @@ necesitan una propuesta visual actualizada antes de aplicarse.
 
 ## 5. Bloques y puntos de parada
 
-Bloques 1 a 14 implementados y comprobados según sus registros. El propietario
-revisó Familia e Invitaciones; Notificaciones y Acceso están pendientes de
-revisión visual. Los bloques 15 a 18 siguen pendientes.
+Implementación de bloques 1 a 16 registrada según sus comprobaciones. La suite
+backend de bloque 17 pasa completa con PostgreSQL; sus recorridos UI con dos
+cuentas quedan pendientes. Checks técnicos del bloque 18 pasan. El propietario
+revisó Familia e Invitaciones; Notificaciones, Acceso y matriz responsive/
+teclado aún esperan inspección visual antes de cerrar la fase.
 Antes: explicar alcance, archivos y concepto.
 Después: mostrar resultado, evidencia y límite, actualizar solo su checklist y
 detenerse. Si una fila exige cambios grandes de lógica, dividirla antes de editar.

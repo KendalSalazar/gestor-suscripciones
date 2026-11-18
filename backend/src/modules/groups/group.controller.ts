@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../middleware/errorHandler';
 import type { CreateInvitationInput, GroupInput, TransferOwnershipInput } from './group.schemas';
-import { createGroup, listGroups, updateGroup } from './group.service';
+import { createGroup, deleteFamilyGroup, listGroups, updateGroup } from './group.service';
 import {
   leaveGroup,
   listMembers as readMembers,
@@ -31,6 +31,13 @@ export async function update(request: Request, response: Response): Promise<void
   const { groupId } = request.params as { groupId: string };
   const group = await updateGroup(request.user.id, groupId, request.body as GroupInput);
   response.status(200).json({ group });
+}
+
+export async function remove(request: Request, response: Response): Promise<void> {
+  if (!request.user) throw new AppError(401, 'Unauthorized');
+  const { groupId } = request.params as { groupId: string };
+  await deleteFamilyGroup(request.user.id, groupId);
+  response.status(204).send();
 }
 
 export async function listMembers(request: Request, response: Response): Promise<void> {

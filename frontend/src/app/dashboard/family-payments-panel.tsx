@@ -688,7 +688,7 @@ export default function FamilyPaymentsPanel({
               </button>
             </div>
           ) : history.shares.length === 0 ? (
-            <p className="payment-state">Todavía no tienes partes confirmadas u omitidas.</p>
+            <p className="payment-state" role="status">Todavía no tienes partes confirmadas u omitidas.</p>
           ) : (
             <ul className="payments-list">{history.shares.map((share) => renderShareItem(share, true))}</ul>
           )}
@@ -726,7 +726,7 @@ export default function FamilyPaymentsPanel({
             No podemos determinar con seguridad cuáles pagos carecen de una parte tuya. Reintenta cargar tus partes y el historial.
           </p>
         ) : paymentsWithoutOwnShare.length === 0 ? (
-          <p className="payment-state">No hay pagos pendientes sin una parte tuya registrada.</p>
+          <p className="payment-state" role="status">No hay pagos pendientes sin una parte tuya registrada.</p>
         ) : (
           <ul className="payments-list">{paymentsWithoutOwnShare.map(renderPaymentWithoutOwnShare)}</ul>
         )}

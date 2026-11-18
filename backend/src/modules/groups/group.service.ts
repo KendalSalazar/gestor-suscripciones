@@ -72,3 +72,42 @@ export async function updateGroup(userId: string, groupId: string, input: GroupI
     client.release();
   }
 }
+
+export async function deleteFamilyGroup(userId: string, groupId: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await getActiveMembership(userId, groupId, 'delete_family_group', client);
+    const group = await lockGroupForWrite(client, groupId);
+    const membership = await getActiveMembership(userId, groupId, 'delete_family_group', client);
+    assertOwner(membership, 'delete_family_group');
+    if (group.type !== 'family') throw new AppError(409, 'Operation requires a family group');
+
+    // Remove dependent history first because those tables intentionally use RESTRICT.
+    await client.query(
+      `DELETE FROM notifications n
+       USING payments p, subscriptions s
+       WHERE n.payment_id = p.id AND p.subscription_id = s.id AND s.group_id = $1`, [groupId],
+    );
+    await client.query(
+      `DELETE FROM payment_shares ps
+       USING payments p, subscriptions s
+       WHERE ps.payment_id = p.id AND p.subscription_id = s.id AND s.group_id = $1`, [groupId],
+    );
+    await client.query(
+      `DELETE FROM payments p
+       USING subscriptions s
+       WHERE p.subscription_id = s.id AND s.group_id = $1`, [groupId],
+    );
+    await client.query('DELETE FROM group_invitations WHERE group_id = $1', [groupId]);
+    await client.query('DELETE FROM subscriptions WHERE group_id = $1', [groupId]);
+    await client.query('DELETE FROM group_members WHERE group_id = $1', [groupId]);
+    await client.query('DELETE FROM groups WHERE id = $1 AND type = \'family\'', [groupId]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

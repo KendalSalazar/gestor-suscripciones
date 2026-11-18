@@ -569,6 +569,21 @@ body {
   min-width: 0;
 }
 
+.app-design .subscription-admin[open] {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--app-surface);
+}
+
+.app-design .subscription-admin[open] > summary {
+  grid-column: 1 / -1;
+}
+
 .app-design .subscription-admin > summary {
   display: flex;
   align-items: center;
@@ -601,24 +616,53 @@ body {
 
 .app-design .subscription-actions,
 .app-design .subscription-cost-form {
-  margin-top: 16px;
+  margin-top: 0;
+}
+
+.app-design .subscription-admin-body {
+  min-width: 0;
+}
+
+.app-design .subscription-admin-body-editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-design .subscription-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.app-design .subscription-safe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.app-design .subscription-actions > .subscription-delete-action {
+  margin-left: auto;
 }
 
 .app-design .subscription-cost-form {
-  max-width: 640px;
-  padding: 20px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  max-width: none;
+  padding: 16px;
   border: 1px solid var(--app-line);
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--app-canvas);
 }
 
 .app-design .subscription-cost-form label {
   display: block;
-  margin-bottom: 8px;
   font-size: 14px;
 }
 
 .app-design .subscription-cost-form p {
-  margin: 12px 0;
+  margin: 0;
   color: var(--app-muted);
   font-size: 14px;
   line-height: 1.6;
@@ -667,6 +711,14 @@ body {
   width: max-content;
   max-width: 100%;
   justify-self: end;
+}
+
+.app-design .subscription-overview-managed > .subscription-admin[open] {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  width: 100%;
+  max-width: none;
+  justify-self: stretch;
 }
 
 .app-design .subscription-column-head {
@@ -906,7 +958,8 @@ body {
 .app-design .family-create-panel {
   display: grid;
   gap: 16px;
-  margin-top: 24px;
+  width: min(440px, calc(100vw - 40px));
+  margin-top: 10px;
   padding: 20px;
   border: 1px solid var(--app-line);
   border-left: 4px solid #cf7fff;
@@ -932,10 +985,11 @@ body {
 }
 
 .app-design .family-current-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
   gap: 16px 24px;
   margin-top: 26px;
   padding: 18px 20px;
@@ -949,6 +1003,12 @@ body {
   color: var(--app-muted);
   font-size: 14px;
   font-weight: 600;
+}
+
+.app-design .family-current-group-copy {
+  grid-column: 1;
+  grid-row: 1;
+  padding-right: 230px;
 }
 
 .app-design .family-current-group-copy h3 {
@@ -967,25 +1027,32 @@ body {
 }
 
 .app-design .family-admin-disclosure {
-  flex: 0 0 auto;
+  grid-column: 1;
+  grid-row: 2;
 }
 
-.app-design .family-admin-disclosure[open] {
-  flex: 1 0 100%;
+.app-design .family-admin-disclosure > summary {
+  position: absolute;
+  top: 18px;
+  right: 20px;
 }
 
 .app-design .family-admin-disclosure-body {
-  flex-basis: 100%;
   width: 100%;
-  padding-top: 16px;
+  padding: 18px 16px 14px;
+  border-top: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-canvas);
+}
+
+.app-design .family-admin-disclosure[open] > summary {
+  z-index: 1;
 }
 
 .app-design .family-admin-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding-top: 16px;
-  border-top: 1px solid var(--app-line);
+  gap: 24px;
 }
 
 .app-design .family-admin-form {
@@ -994,10 +1061,10 @@ body {
   align-items: flex-start;
   gap: 10px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--app-line);
-  border-radius: 8px;
-  background: var(--app-canvas);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .app-design .family-admin-form > .ui-field {
@@ -1016,6 +1083,28 @@ body {
   border-top: 1px solid var(--app-line);
   color: var(--app-muted);
   font-size: 14px;
+}
+
+.app-design .family-admin-delete {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--app-line);
+}
+
+.app-design .family-admin-delete strong {
+  color: var(--app-text);
+  font-size: 14px;
+}
+
+.app-design .family-admin-delete p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .app-design .family-create-form {
@@ -1124,6 +1213,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .app-design .family-admin-delete {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .app-design .family-create-form {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1139,14 +1233,39 @@ body {
     flex-direction: column;
   }
 
-  .app-design .family-admin-disclosure,
   .app-design .family-admin-disclosure > summary {
     width: 100%;
   }
 
   .app-design .family-current-group {
     align-items: flex-start;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
     padding: 16px;
+  }
+
+  .app-design .family-current-group-copy {
+    grid-column: 1;
+    grid-row: 1;
+    padding-right: 0;
+  }
+
+  .app-design .family-admin-disclosure:not([open]) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .app-design .family-admin-disclosure[open] > summary {
+    position: static;
+  }
+
+  .app-design .family-admin-disclosure > summary {
+    position: static;
+    width: 100%;
+  }
+
+  .app-design .family-admin-disclosure-body {
+    padding: 16px 12px 12px;
   }
 
   .app-design .family-groups-heading {
@@ -1196,6 +1315,45 @@ body {
 }
 
 @media (max-width: 767px) {
+  .app-design .subscription-admin-body {
+    min-width: 0;
+  }
+
+  .app-design .subscription-admin[open] {
+    padding: 12px;
+  }
+
+  .app-design .subscription-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-left: 4px;
+  }
+
+  .app-design .subscription-safe-actions {
+    display: contents;
+  }
+
+  .app-design .subscription-actions :is(.ui-button, .subscription-delete-action) {
+    width: 100%;
+    min-height: 48px;
+    justify-content: flex-start;
+    padding: 10px 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+  }
+
+  .app-design .subscription-actions .ui-button-secondary {
+    border-bottom: 1px solid var(--app-line);
+  }
+
+  .app-design .subscription-actions > .subscription-delete-action {
+    margin: 0;
+    color: var(--app-danger);
+  }
+
   .app-design .subscription-column-head {
     display: none;
   }
@@ -1228,6 +1386,10 @@ body {
 }
 
 @media (max-width: 1023px) {
+  .app-design .subscription-admin[open] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .app-design .subscription-column-head-managed {
     display: none;
   }
@@ -1463,6 +1625,14 @@ body {
 }
 
 .app-design .app-shell-heading > div {
+  min-width: 0;
+}
+
+.app-design .app-shell-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -1781,6 +1951,14 @@ body {
   background: var(--app-surface);
 }
 
+.app-design .invitation-recipient-back {
+  width: fit-content;
+  margin-top: 24px;
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  text-decoration: none;
+}
+
 .app-design .invitation-recipient-heading {
   padding-bottom: 22px;
   border-bottom: 1px solid var(--app-line);
@@ -2053,6 +2231,10 @@ body {
 
   .app-design .invitation-recipient {
     padding: 22px 18px;
+  }
+
+  .app-design .invitation-recipient-back {
+    width: 100%;
   }
 
   .app-design .invitation-recipient-heading h1 {

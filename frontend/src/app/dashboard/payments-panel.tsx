@@ -366,7 +366,7 @@ export default function PaymentsPanel({
           ) : history.error ? (
             <p className="ui-feedback ui-feedback-error mt-5" role="alert">{history.error}</p>
           ) : history.payments.length === 0 ? (
-            <p className="payment-state">Todavía no has confirmado ni omitido pagos.</p>
+            <p className="payment-state" role="status">Todavía no has confirmado ni omitido pagos.</p>
           ) : (
             <ul className="payments-list">
               {history.payments.map((payment) => (

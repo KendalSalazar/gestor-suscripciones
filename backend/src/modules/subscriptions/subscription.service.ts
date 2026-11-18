@@ -219,25 +219,48 @@ export async function deleteSubscription(
     const membership = await getActiveMembership(userId, groupId, 'delete', client);
     assertOwner(membership, 'delete');
 
-    let result: QueryResult<{ id: string }>;
-    try {
-      result = await subscriptionQuery<{ id: string }>(
-        'delete',
-        `DELETE FROM subscriptions
-         -- Keep deletes scoped to the authorized group as well as the subscription id.
-         WHERE group_id = $1 AND id = $2
-         RETURNING id`,
-        [groupId, subscriptionId],
-        client,
-      );
-    } catch (error) {
-      if (typeof error === 'object' && error !== null
-        && 'code' in error && error.code === '23503'
-        && 'constraint' in error && error.constraint === 'payments_subscription_id_fkey') {
-        throw new AppError(409, 'Subscription has payment history; deactivate it instead');
-      }
-      throw error;
-    }
+    // Payment history is intentionally protected by RESTRICT foreign keys.
+    // Remove its dependants in order, inside this same transaction.
+    await subscriptionQuery(
+      'delete_notifications',
+      `DELETE FROM notifications n
+       USING payments p
+       WHERE n.payment_id = p.id AND p.subscription_id = $2
+         AND EXISTS (
+           SELECT 1 FROM subscriptions s WHERE s.id = p.subscription_id AND s.group_id = $1
+         )`,
+      [groupId, subscriptionId],
+      client,
+    );
+    await subscriptionQuery(
+      'delete_payment_shares',
+      `DELETE FROM payment_shares ps
+       USING payments p
+       WHERE ps.payment_id = p.id AND p.subscription_id = $2
+         AND EXISTS (
+           SELECT 1 FROM subscriptions s WHERE s.id = p.subscription_id AND s.group_id = $1
+         )`,
+      [groupId, subscriptionId],
+      client,
+    );
+    await subscriptionQuery(
+      'delete_payments',
+      `DELETE FROM payments p
+       USING subscriptions s
+       WHERE p.subscription_id = s.id AND s.group_id = $1 AND s.id = $2`,
+      [groupId, subscriptionId],
+      client,
+    );
+
+    const result = await subscriptionQuery<{ id: string }>(
+      'delete',
+      `DELETE FROM subscriptions
+       -- Keep deletes scoped to the authorized group as well as the subscription id.
+       WHERE group_id = $1 AND id = $2
+       RETURNING id`,
+      [groupId, subscriptionId],
+      client,
+    );
 
     if (!result.rows[0]) {
       throw new AppError(404, 'Subscription not found');

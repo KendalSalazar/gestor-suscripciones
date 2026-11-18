@@ -83,18 +83,11 @@ Desactivar con `{ "active": false }` impide generar nuevos pagos y conserva los 
 
 ### Borrar
 
-`DELETE /groups/:groupId/subscriptions/:subscriptionId` — solo owner. Una suscripción sin pagos devuelve `204` sin cuerpo. Si tiene historial de pagos, devuelve `409` y conserva la suscripción y sus pagos:
-
-```json
-{
-  "error": {
-    "message": "Subscription has payment history; deactivate it instead",
-    "status": 409
-  }
-}
-```
-
-En ese caso se puede desactivar mediante PATCH en lugar de borrar. Una suscripción inexistente dentro del grupo autorizado sigue devolviendo `404`.
+`DELETE /groups/:groupId/subscriptions/:subscriptionId` — solo owner. Devuelve
+`204` sin cuerpo y elimina definitivamente la suscripción, sus pagos registrados,
+partes y notificaciones asociadas. La operación borra los datos dependientes en
+orden dentro de una transacción; si falla algún paso, se revierten todos. Una
+suscripción inexistente dentro del grupo autorizado sigue devolviendo `404`.
 
 ## Errores
 
