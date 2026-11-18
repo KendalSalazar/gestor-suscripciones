@@ -50,9 +50,22 @@ export default function PaymentsPanel({
   const [actionError, setActionError] = useState<{ paymentId: string; message: string } | null>(null);
   const [notice, setNotice] = useState('');
   const actionRequest = useRef<AbortController | null>(null);
+  const confirmationReturnFocusRef = useRef<string | null>(null);
+  const confirmationPaymentId = confirmation?.paymentId ?? null;
   const basePath = `/groups/${groupId}/payments`;
   const pendingLoading = pending.loading || pending.refreshVersion !== refreshVersion;
   const historyLoading = history.loading || history.refreshVersion !== refreshVersion;
+
+  useEffect(() => {
+    if (confirmationPaymentId) {
+      document.getElementById(`payment-amount-${confirmationPaymentId}`)?.focus();
+      return;
+    }
+    const paymentId = confirmationReturnFocusRef.current;
+    if (!paymentId || pendingLoading || sendingId !== null) return;
+    confirmationReturnFocusRef.current = null;
+    document.getElementById(`payment-confirm-${paymentId}`)?.focus();
+  }, [confirmationPaymentId, pendingLoading, sendingId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -212,19 +225,18 @@ export default function PaymentsPanel({
   }
 
   return (
-    <section aria-labelledby="payments-heading" className="mt-10 border-t border-slate-200 pt-8">
-      <h2 className="text-2xl font-semibold text-slate-950" id="payments-heading">Tus pagos</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
+    <section aria-label="Pagos personales" className="payments-panel">
+      <p className="payments-description">
         Registra los cobros de tus suscripciones. Confirmar un pago solo lo anota en tu control personal.
       </p>
-      {notice && <p className="mt-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-900" role="status">{notice}</p>}
+      {notice && <p className="ui-feedback payment-notice" role="status">{notice}</p>}
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-        <section aria-labelledby="pending-payments-heading" className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xl font-semibold text-slate-950" id="pending-payments-heading">Pagos pendientes</h3>
+      <div className="payments-stack">
+        <section aria-labelledby="pending-payments-heading" className="payments-section">
+          <div className="payments-section-heading">
+            <h2 id="pending-payments-heading">Pagos pendientes</h2>
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={pendingLoading || sendingId !== null}
               onClick={reloadPending}
               type="button"
@@ -232,39 +244,39 @@ export default function PaymentsPanel({
               Actualizar pendientes
             </button>
           </div>
-          <p className="mt-2 text-sm text-slate-500">Hasta 100 pendientes, por fecha de cobro más reciente.</p>
+          <p className="payments-description">Hasta 100 pendientes, por fecha de cobro más reciente.</p>
 
           {pendingLoading ? (
-            <p className="mt-6 text-sm text-slate-600" role="status">Cargando pagos pendientes…</p>
+            <p className="payment-state" role="status">Cargando pagos pendientes…</p>
           ) : pending.error ? (
-            <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{pending.error}</p>
+            <p className="ui-feedback ui-feedback-error mt-5" role="alert">{pending.error}</p>
           ) : pending.payments.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">No tienes pagos pendientes.</p>
+            <p className="payment-state">No tienes pagos pendientes.</p>
           ) : (
-            <ul className="mt-5 space-y-5">
+            <ul className="payments-list">
               {pending.payments.map((payment) => {
                 const isConfirming = confirmation?.paymentId === payment.id;
                 const error = actionError?.paymentId === payment.id ? actionError.message : '';
                 const errorId = `payment-error-${payment.id}`;
 
                 return (
-                  <li className="border-t border-slate-100 pt-5" key={payment.id}>
-                    <h4 className="break-words font-semibold text-slate-950">{payment.subscriptionName}</h4>
-                    <p className="mt-1 text-sm text-slate-600">
+                  <li className="payment-row" key={payment.id}>
+                    <h3 className="payment-name">{payment.subscriptionName}</h3>
+                    <p className="payment-date">
                       Cobro previsto: <time dateTime={payment.expectedDate}>{payment.expectedDate}</time>
                     </p>
-                    <p className="mt-2 text-sm text-slate-700">Importe esperado: <strong>{payment.expectedAmount}</strong></p>
+                    <dl className="payment-values"><div><dt>Importe previsto</dt><dd>{payment.expectedAmount}</dd></div><div><dt>Estado</dt><dd><span className="payment-badge payment-badge-pending">Pendiente de confirmar</span></dd></div></dl>
 
                     {isConfirming ? (
-                      <form className="mt-4 space-y-3" onSubmit={(event) => submitConfirmation(event, payment)}>
+                      <form className="payment-confirmation" onSubmit={(event) => submitConfirmation(event, payment)}>
                         <div>
-                          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor={`payment-amount-${payment.id}`}>
+                          <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor={`payment-amount-${payment.id}`}>
                             Importe pagado
                           </label>
                           <input
                             aria-describedby={`${error ? `${errorId} ` : ''}payment-hint-${payment.id}`}
                             aria-invalid={Boolean(error)}
-                            className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+                            className="ui-field"
                             disabled={sendingId !== null}
                             id={`payment-amount-${payment.id}`}
                             inputMode="decimal"
@@ -276,22 +288,22 @@ export default function PaymentsPanel({
                             type="text"
                             value={confirmation.amount}
                           />
-                          <p className="mt-1.5 text-xs text-slate-500" id={`payment-hint-${payment.id}`}>
+                          <p className="payment-hint" id={`payment-hint-${payment.id}`}>
                             Usa un punto decimal, por ejemplo 17.99. Esto no cambia el coste de tu suscripción.
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="payment-actions">
                           <button
-                            className="min-h-10 rounded-lg bg-violet-700 px-3 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-60"
+                            className="ui-button"
                             disabled={sendingId !== null}
                             type="submit"
                           >
                             {sendingId === payment.id ? 'Guardando…' : 'Guardar confirmación'}
                           </button>
                           <button
-                            className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                            className="ui-button ui-button-secondary"
                             disabled={sendingId !== null}
-                            onClick={() => { setConfirmation(null); setActionError(null); }}
+                            onClick={() => { confirmationReturnFocusRef.current = payment.id; setConfirmation(null); setActionError(null); }}
                             type="button"
                           >
                             Cancelar
@@ -299,11 +311,12 @@ export default function PaymentsPanel({
                         </div>
                       </form>
                     ) : (
-                      <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="payment-actions">
                         <button
                           aria-describedby={error ? errorId : undefined}
                           aria-label={`Confirmar pago de ${payment.subscriptionName} del ${payment.expectedDate}`}
-                          className="min-h-10 rounded-lg bg-violet-700 px-3 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-60"
+                          id={`payment-confirm-${payment.id}`}
+                          className="ui-button"
                           disabled={sendingId !== null}
                           onClick={() => {
                             setConfirmation({ paymentId: payment.id, amount: payment.expectedAmount });
@@ -317,7 +330,7 @@ export default function PaymentsPanel({
                         <button
                           aria-describedby={error ? errorId : undefined}
                           aria-label={`Omitir pago de ${payment.subscriptionName} del ${payment.expectedDate}`}
-                          className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                          className="ui-button ui-button-secondary"
                           disabled={sendingId !== null}
                           onClick={() => skipPayment(payment)}
                           type="button"
@@ -326,7 +339,7 @@ export default function PaymentsPanel({
                         </button>
                       </div>
                     )}
-                    {error && <p className="mt-3 text-sm text-red-700" id={errorId} role="alert">{error}</p>}
+                    {error && <p className="ui-feedback ui-feedback-error mt-4" id={errorId} role="alert">{error}</p>}
                   </li>
                 );
               })}
@@ -334,11 +347,11 @@ export default function PaymentsPanel({
           )}
         </section>
 
-        <section aria-labelledby="payment-history-heading" className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xl font-semibold text-slate-950" id="payment-history-heading">Historial de pagos</h3>
+        <section aria-labelledby="payment-history-heading" className="payments-section">
+          <div className="payments-section-heading">
+            <h2 id="payment-history-heading">Historial de pagos</h2>
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={historyLoading || sendingId !== null}
               onClick={reloadHistory}
               type="button"
@@ -346,36 +359,36 @@ export default function PaymentsPanel({
               Actualizar historial
             </button>
           </div>
-          <p className="mt-2 text-sm text-slate-500">Hasta 100 pagos resueltos, por fecha de cobro más reciente.</p>
+          <p className="payments-description">Hasta 100 pagos resueltos, por fecha de cobro más reciente.</p>
 
           {historyLoading ? (
-            <p className="mt-6 text-sm text-slate-600" role="status">Cargando historial de pagos…</p>
+            <p className="payment-state" role="status">Cargando historial de pagos…</p>
           ) : history.error ? (
-            <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{history.error}</p>
+            <p className="ui-feedback ui-feedback-error mt-5" role="alert">{history.error}</p>
           ) : history.payments.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">Todavía no has confirmado ni omitido pagos.</p>
+            <p className="payment-state">Todavía no has confirmado ni omitido pagos.</p>
           ) : (
-            <ul className="mt-5 space-y-5">
+            <ul className="payments-list">
               {history.payments.map((payment) => (
-                <li className="border-t border-slate-100 pt-5" key={payment.id}>
-                  <h4 className="break-words font-semibold text-slate-950">{payment.subscriptionName}</h4>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${payment.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                <li className="payment-row" key={payment.id}>
+                  <h3 className="payment-name">{payment.subscriptionName}</h3>
+                  <div className="payment-badges mt-2">
+                    <span className={`payment-badge ${payment.status === 'confirmed' ? 'payment-badge-confirmed' : ''}`}>
                       {payment.status === 'confirmed' ? 'Confirmado' : 'Omitido'}
                     </span>
-                    {payment.priceChanged && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Importe diferente al esperado</span>}
+                    {payment.priceChanged && <span className="payment-badge payment-badge-changed">Importe diferente al esperado</span>}
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">
+                  <p className="payment-date">
                     Cobro previsto: <time dateTime={payment.expectedDate}>{payment.expectedDate}</time>
                   </p>
-                  <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <dl className="payment-values">
                     <div>
-                      <dt className="text-slate-500">Esperado</dt>
-                      <dd className="mt-1 font-medium text-slate-800">{payment.expectedAmount}</dd>
+                      <dt>Importe previsto</dt>
+                      <dd>{payment.expectedAmount}</dd>
                     </div>
                     <div>
-                      <dt className="text-slate-500">Pagado</dt>
-                      <dd className="mt-1 font-medium text-slate-800">{payment.actualAmount ?? 'Sin importe registrado'}</dd>
+                      <dt>Importe registrado</dt>
+                      <dd>{payment.actualAmount ?? 'Sin importe registrado'}</dd>
                     </div>
                   </dl>
                 </li>

@@ -181,14 +181,14 @@ export default function InvitationsPanel({
   }
 
   return (
-    <section aria-labelledby="invitations-heading" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section aria-labelledby="invitations-heading" className="invitation-admin">
+      <div className="invitation-admin-heading">
         <div>
-          <h2 className="text-xl font-semibold text-slate-950" id="invitations-heading">Invitaciones de {groupName}</h2>
-          <p className="mt-1 text-sm text-slate-600">El código se entrega una vez y vence después de siete días. No se envía por correo automáticamente.</p>
+          <h2 id="invitations-heading">Invitaciones</h2>
+          <p>Invita a una persona a <strong>{groupName}</strong>. El código se muestra una sola vez y vence en siete días; debes compartirlo tú.</p>
         </div>
         <button
-          className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          className="ui-button ui-button-secondary"
           disabled={invitationsLoading || working !== null}
           onClick={reloadInvitations}
           type="button"
@@ -197,15 +197,19 @@ export default function InvitationsPanel({
         </button>
       </div>
 
-      {notice && <p className="mt-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-900" role="status">{notice}</p>}
-      {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</p>}
+      {notice && <p className="ui-feedback invitation-notice" role="status">{notice}</p>}
+      {error && <p className="ui-feedback ui-feedback-error invitation-error" role="alert">{error}</p>}
 
-      <form className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-end" onSubmit={createInvitation}>
-        <div className="min-w-0 flex-1">
-          <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="invitation-email">Correo de la persona</label>
+      <form className="invitation-create-form" onSubmit={createInvitation}>
+        <div className="invitation-create-copy">
+          <h3>Invitar a alguien</h3>
+          <p>El correo se usa para proteger el acceso al grupo.</p>
+        </div>
+        <div className="invitation-create-field">
+          <label className="app-design-label" htmlFor="invitation-email">Correo de la persona</label>
           <input
             autoComplete="off"
-            className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
+            className="ui-field"
             disabled={working !== null || oneTimeCode !== null}
             id="invitation-email"
             maxLength={254}
@@ -216,7 +220,7 @@ export default function InvitationsPanel({
           />
         </div>
         <button
-          className="min-h-11 rounded-lg bg-violet-700 px-4 text-sm font-medium text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ui-button invitation-create-submit"
           disabled={working !== null || oneTimeCode !== null || !email.trim()}
           type="submit"
         >
@@ -225,49 +229,58 @@ export default function InvitationsPanel({
       </form>
 
       {oneTimeCode && (
-        <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
-          <h3 className="font-semibold text-amber-950">Código de un solo uso</h3>
-          <p className="mt-1 text-sm text-amber-900">Compártelo con la persona destinataria ahora. No lo pegues en enlaces ni mensajes públicos.</p>
-          <code className="mt-3 block select-all break-all rounded-lg bg-white p-3 text-sm text-slate-900">{oneTimeCode.code}</code>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button className="min-h-10 rounded-lg bg-amber-800 px-3 text-sm font-medium text-white hover:bg-amber-900" onClick={() => void copyCode()} type="button">
+        <div className="invitation-secret">
+          <div className="invitation-secret-heading">
+            <h3>Copia este código ahora</h3>
+            <p>Por seguridad, no podrás volver a consultarlo.</p>
+          </div>
+          <code className="invitation-secret-code select-all">{oneTimeCode.code}</code>
+          <div className="invitation-secret-actions">
+            <button className="ui-button invitation-copy-button" onClick={() => void copyCode()} type="button">
               Copiar y ocultar código
             </button>
-            <button className="min-h-10 rounded-lg border border-amber-700 px-3 text-sm font-medium text-amber-950" onClick={() => { setOneTimeCode(null); setNotice('Código ocultado. Si no lo guardaste, revoca la invitación y crea otra.'); }} type="button">
+            <button className="ui-button ui-button-secondary" onClick={() => { setOneTimeCode(null); setNotice('Código ocultado. Si no lo guardaste, revoca la invitación y crea otra.'); }} type="button">
               Ocultar sin copiar
             </button>
           </div>
         </div>
       )}
 
-      <div className="mt-6 border-t border-slate-100 pt-5">
-        <h3 className="font-semibold text-slate-900">Historial de invitaciones</h3>
-        <p className="mt-1 text-sm text-slate-500">Hasta 100 invitaciones recientes. El historial nunca incluye el código secreto.</p>
+      <div className="invitation-history">
+        <div className="invitation-history-heading">
+          <div>
+            <h3>Enviadas</h3>
+            <p>Hasta 100 invitaciones recientes. El historial no muestra códigos.</p>
+          </div>
+        </div>
         {invitationsLoading ? (
-          <p className="mt-4 text-sm text-slate-600" role="status">Cargando invitaciones…</p>
+          <p className="invitation-state" role="status">Cargando invitaciones…</p>
         ) : invitations.error ? (
-          <div className="mt-4 rounded-xl bg-red-50 px-4 py-3">
-            <p className="text-sm text-red-700" role="alert">{invitations.error}</p>
-            <button className="mt-3 min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={reloadInvitations} type="button">Reintentar</button>
+          <div className="invitation-state invitation-state-error">
+            <p className="ui-feedback ui-feedback-error" role="alert">{invitations.error}</p>
+            <button className="ui-button ui-button-secondary" onClick={reloadInvitations} type="button">Reintentar</button>
           </div>
         ) : invitations.invitations.length === 0 ? (
-          <p className="mt-4 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">Todavía no hay invitaciones para esta familia.</p>
+          <p className="invitation-state invitation-state-empty">Todavía no hay invitaciones enviadas a esta familia.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-slate-100">
+          <ul className="invitation-list">
             {invitations.invitations.map((invitation) => (
-              <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between" key={invitation.id}>
-                <div className="min-w-0">
-                  <p className="break-words font-medium text-slate-900">{invitation.email}</p>
-                  <p className="mt-1 text-sm text-slate-600">Creada {formatDate(invitation.createdAt)} · vence {formatDate(invitation.expiresAt)}</p>
-                  <p className="text-sm text-slate-500">Creada por {invitation.invitedByName}</p>
+              <li className="invitation-row" key={invitation.id}>
+                <div className="invitation-row-copy">
+                  <p className="invitation-recipient-email">{invitation.email}</p>
+                  <dl className="invitation-row-dates">
+                    <div><dt>Creada</dt><dd><time dateTime={invitation.createdAt}>{formatDate(invitation.createdAt)}</time></dd></div>
+                    <div><dt>Vence</dt><dd><time dateTime={invitation.expiresAt}>{formatDate(invitation.expiresAt)}</time></dd></div>
+                    <div><dt>Invitó</dt><dd>{invitation.invitedByName}</dd></div>
+                  </dl>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${invitation.status === 'pending' ? 'bg-amber-50 text-amber-800' : invitation.status === 'accepted' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                <div className="invitation-row-actions">
+                  <span className={`invitation-status invitation-status-${invitation.status}`}>
                     {statusLabel(invitation.status)}
                   </span>
                   {invitation.status === 'pending' && (
                     <button
-                      className="min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      className="ui-button ui-button-danger"
                       disabled={working !== null}
                       onClick={() => void revokeInvitation(invitation)}
                       type="button"

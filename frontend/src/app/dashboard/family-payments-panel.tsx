@@ -413,14 +413,14 @@ export default function FamilyPaymentsPanel({
     const panelId = `family-breakdown-${paymentId}`;
 
     return (
-      <div className="mt-4 rounded-2xl bg-slate-50 p-4" id={panelId}>
+      <div className="payment-breakdown" id={panelId}>
         {!state || state.loading || state.refreshVersion !== refreshVersion ? (
-          <p className="text-sm text-slate-600" role="status">Cargando reparto…</p>
+          <p className="payments-description" role="status">Cargando reparto…</p>
         ) : state?.error ? (
           <div>
-            <p className="text-sm text-red-700" role="alert">{state.error}</p>
+            <p className="ui-feedback ui-feedback-error" role="alert">{state.error}</p>
             <button
-              className="mt-2 min-h-9 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-white"
+              className="ui-button ui-button-secondary mt-3"
               onClick={() => reloadBreakdown(paymentId)}
               type="button"
             >
@@ -429,22 +429,24 @@ export default function FamilyPaymentsPanel({
           </div>
         ) : state?.data ? (
           <>
-            <h5 className="font-semibold text-slate-900">Reparto de {state.data.payment.subscriptionName}</h5>
-            <p className="mt-1 text-sm text-slate-600">
+            <h4>Reparto de {state.data.payment.subscriptionName}</h4>
+            <p className="payments-description">
               {state.data.summary.confirmedShares} de {state.data.summary.totalShares} partes confirmadas ·
               importe confirmado {state.data.summary.confirmedAmount}
             </p>
             {state.data.shares.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">Este pago no tiene partes registradas.</p>
+              <p className="payments-description">Este pago no tiene partes registradas.</p>
             ) : (
-              <ul className="mt-3 divide-y divide-slate-200">
+              <ul className="payment-participants" aria-label="Participantes del pago">
                 {state.data.shares.map((item) => (
-                  <li className="flex flex-col gap-1 py-3 text-sm sm:flex-row sm:items-center sm:justify-between" key={item.id}>
-                    <span className="font-medium text-slate-800">{item.userName}</span>
-                    <span className="text-slate-600">
-                      Cuota {item.shareAmount} · {item.sharePercentage}% · {shareStatusLabel(item.status)}
-                      {item.status === 'confirmed' && item.actualAmount !== null ? ` (${item.actualAmount})` : ''}
-                    </span>
+                  <li className="payment-participant" key={item.id}>
+                    <h5>{item.userName}</h5>
+                    <dl className="payment-group-values">
+                      <div><dt>Cuota prevista</dt><dd>{item.shareAmount}</dd></div>
+                      <div><dt>Porcentaje asignado</dt><dd>{item.sharePercentage}%</dd></div>
+                      <div><dt>Importe registrado</dt><dd>{item.actualAmount ?? (item.status === 'skipped' ? 'Sin importe' : 'Sin registrar')}</dd></div>
+                      <div><dt>Estado de la parte</dt><dd>{shareStatusLabel(item.status)}</dd></div>
+                    </dl>
                   </li>
                 ))}
               </ul>
@@ -463,54 +465,48 @@ export default function FamilyPaymentsPanel({
     const breakdownId = `family-breakdown-${share.paymentId}`;
 
     return (
-      <li className="rounded-2xl border border-slate-200 p-4" key={share.id}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h4 className="break-words font-semibold text-slate-950">{share.payment.subscriptionName}</h4>
-            <p className="mt-1 text-sm text-slate-600">
+      <li className="payment-row" key={share.id}>
+        <div className={`payment-top${isHistory ? ' payment-history-top' : ''}`}>
+          {isHistory && (
+            <span
+              aria-hidden="true"
+              className={`payment-history-mark payment-history-mark-${share.status}`}
+            >
+              {share.status === 'confirmed' ? '✓' : '×'}
+            </span>
+          )}
+          <div>
+            <h3 className="payment-name">{share.payment.subscriptionName}</h3>
+            <p className="payment-date">
               Cobro previsto: <time dateTime={share.payment.expectedDate}>{share.payment.expectedDate}</time>
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${share.status === 'pending' ? 'bg-amber-50 text-amber-800' : share.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-              {ownShareStatusLabel(share.status)}
-            </span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${share.payment.status === 'pending' ? 'bg-slate-100 text-slate-700' : share.payment.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-              {paymentStatusLabel(share.payment.status)}
-            </span>
-          </div>
+        </div>
+        <h4 className="payment-scope-title">Tu parte</h4>
+        <dl className="payment-values payment-own-values">
+          <div><dt>Tu cuota prevista</dt><dd>{share.shareAmount}</dd></div>
+          <div><dt>Tu importe registrado</dt><dd>{share.actualAmount ?? (share.status === 'skipped' ? 'Sin importe' : 'Sin registrar')}</dd></div>
+          <div><dt>Estado de tu parte</dt><dd><span className={`payment-badge ${share.status === 'pending' ? 'payment-badge-pending' : share.status === 'confirmed' ? 'payment-badge-confirmed' : 'payment-badge-skipped'}`}>{ownShareStatusLabel(share.status)}</span></dd></div>
+        </dl>
+        <div className="payment-group-context">
+          <h4 className="payment-scope-title">Pago del grupo</h4>
+          <dl className="payment-group-values">
+            <div><dt>Total previsto</dt><dd>{share.payment.expectedAmount}</dd></div>
+            <div><dt>Confirmado por el grupo</dt><dd>{share.summary.confirmedAmount}</dd></div>
+            <div><dt>Partes confirmadas</dt><dd>{share.summary.confirmedShares} de {share.summary.totalShares}</dd></div>
+            <div><dt>Estado del pago completo</dt><dd>{paymentStatusLabel(share.payment.status)}</dd></div>
+          </dl>
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-slate-500">Tu cuota prevista</dt>
-            <dd className="mt-1 font-medium text-slate-900">{share.shareAmount}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Importe de tu parte</dt>
-              <dd className="mt-1 font-medium text-slate-900">{share.actualAmount ?? (share.status === 'skipped' ? 'Sin importe' : 'Pendiente')}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Progreso grupal</dt>
-            <dd className="mt-1 font-medium text-slate-900">
-              {share.summary.confirmedShares} de {share.summary.totalShares}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Confirmado por el grupo</dt>
-            <dd className="mt-1 font-medium text-slate-900">{share.summary.confirmedAmount}</dd>
-          </div>
-        </dl>
-
         {!isHistory && (
-          <form className="mt-4 space-y-3 border-t border-slate-100 pt-4" onSubmit={(event) => submitConfirmation(event, share)}>
+          <form className="payment-confirmation" onSubmit={(event) => submitConfirmation(event, share)}>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor={`share-amount-${share.id}`}>
+              <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor={`share-amount-${share.id}`}>
                 Importe real de tu parte
               </label>
               <input
                 aria-describedby={`${error ? `${errorId} ` : ''}share-amount-help-${share.id}`}
-                className="min-h-10 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100 sm:max-w-xs"
+                className="ui-field"
                 disabled={sendingPaymentId !== null}
                 id={`share-amount-${share.id}`}
                 inputMode="decimal"
@@ -524,45 +520,54 @@ export default function FamilyPaymentsPanel({
                 }}
                 value={isConfirming ? confirmation.amount : share.shareAmount}
               />
-              <p className="mt-1 text-xs text-slate-500" id={`share-amount-help-${share.id}`}>
+              <p className="payment-hint" id={`share-amount-help-${share.id}`}>
                 {isOwner
-                  ? 'Como owner puedes corregir el importe real de tu propia parte; el coste de la suscripción se conserva.'
+                  ? 'Como responsable puedes corregir el importe real de tu propia parte; el coste de la suscripción se conserva.'
                   : `Puedes registrar un importe menor o igual a tu cuota prevista de ${share.shareAmount}.`}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="min-h-10 rounded-lg bg-violet-700 px-3 text-sm font-medium text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={sendingPaymentId !== null}
-                type="submit"
-              >
-                {isSending ? 'Guardando…' : 'Confirmar mi parte'}
+            <div className="payment-actions payment-pending-actions">
+              <button className="ui-button" disabled={sendingPaymentId !== null} type="submit">
+                <span>{isSending ? 'Guardando…' : 'Confirmar mi parte'}</span>
               </button>
               {isOwner && share.payment.status === 'pending' && (
                 <button
-                  className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="ui-button ui-button-secondary"
                   disabled={sendingPaymentId !== null}
                   onClick={() => void skipFamilyPayment(share.payment)}
                   type="button"
                 >
-                  {isSending ? 'Guardando…' : 'Omitir el pago grupal'}
+                  <span>{isSending ? 'Guardando…' : 'Omitir el pago grupal'}</span>
                 </button>
               )}
+              <button
+                aria-controls={breakdownId}
+                aria-expanded={expandedPaymentId === share.paymentId}
+                className="ui-button ui-button-secondary"
+                onClick={() => toggleBreakdown(share.paymentId)}
+                type="button"
+              >
+                <span>{expandedPaymentId === share.paymentId ? 'Ocultar reparto' : 'Ver reparto completo'}</span>
+              </button>
             </div>
-            {error && <p className="text-sm text-red-700" id={errorId} role="alert">{error}</p>}
+            {error && <p className="ui-feedback ui-feedback-error mt-4" id={errorId} role="alert">{error}</p>}
           </form>
         )}
-        {isHistory && error && <p className="mt-3 text-sm text-red-700" id={errorId} role="alert">{error}</p>}
+        {isHistory && error && <p className="ui-feedback ui-feedback-error mt-4" id={errorId} role="alert">{error}</p>}
 
-        <button
-          aria-controls={breakdownId}
-          aria-expanded={expandedPaymentId === share.paymentId}
-          className="mt-4 min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          onClick={() => toggleBreakdown(share.paymentId)}
-          type="button"
-        >
-          {expandedPaymentId === share.paymentId ? 'Ocultar reparto' : 'Ver reparto completo'}
-        </button>
+        {isHistory && (
+          <div className="payment-actions">
+            <button
+              aria-controls={breakdownId}
+              aria-expanded={expandedPaymentId === share.paymentId}
+              className="ui-button ui-button-secondary"
+              onClick={() => toggleBreakdown(share.paymentId)}
+              type="button"
+            >
+              {expandedPaymentId === share.paymentId ? 'Ocultar reparto' : 'Ver reparto completo'}
+            </button>
+          </div>
+        )}
         {renderBreakdown(share.paymentId)}
       </li>
     );
@@ -580,27 +585,25 @@ export default function FamilyPaymentsPanel({
     const breakdownId = `family-breakdown-${payment.id}`;
 
     return (
-      <li className="rounded-2xl border border-slate-200 p-4" key={payment.id}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h4 className="break-words font-semibold text-slate-950">{payment.subscriptionName}</h4>
-            <p className="mt-1 text-sm text-slate-600">
-              Cobro previsto: <time dateTime={payment.expectedDate}>{payment.expectedDate}</time>
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              Pago grupal pendiente · importe esperado {payment.expectedAmount}. No tienes una parte registrada; no se crea una cuota retroactiva.
-            </p>
+      <li className="payment-row" key={payment.id}>
+        <div className="payment-top">
+          <div>
+            <h3 className="payment-name">{payment.subscriptionName}</h3>
+            <p className="payment-date">Cobro previsto: <time dateTime={payment.expectedDate}>{payment.expectedDate}</time></p>
           </div>
-          <span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-            {paymentStatusLabel(payment.status)}
-          </span>
+          <span className="payment-badge payment-badge-pending">{paymentStatusLabel(payment.status)}</span>
         </div>
+        <dl className="payment-values">
+          <div><dt>Total previsto del grupo</dt><dd>{payment.expectedAmount}</dd></div>
+          <div><dt>Tu parte</dt><dd>Sin parte asignada</dd></div>
+        </dl>
+        <p className="payment-hint">Puedes consultar el reparto. No se crea una cuota retroactiva para ti.</p>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+        <div className="payment-actions">
           <button
             aria-controls={breakdownId}
             aria-expanded={expandedPaymentId === payment.id}
-            className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="ui-button ui-button-secondary"
             onClick={() => toggleBreakdown(payment.id)}
             type="button"
           >
@@ -608,7 +611,7 @@ export default function FamilyPaymentsPanel({
           </button>
           {isOwner && payment.status === 'pending' && (
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={sendingPaymentId !== null}
               onClick={() => void skipFamilyPayment(payment)}
               type="button"
@@ -617,26 +620,25 @@ export default function FamilyPaymentsPanel({
             </button>
           )}
         </div>
-        {error && <p className="mt-3 text-sm text-red-700" role="alert">{error}</p>}
+        {error && <p className="ui-feedback ui-feedback-error mt-4" role="alert">{error}</p>}
         {renderBreakdown(payment.id)}
       </li>
     );
   }
 
   return (
-    <section aria-labelledby="family-payments-heading" className="mt-10 border-t border-slate-200 pt-8">
-      <h2 className="text-2xl font-semibold text-slate-950" id="family-payments-heading">Partes de pago familiares</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+    <section aria-label="Pagos familiares" className="payments-panel">
+      <p className="payments-description">
         Aquí ves tus propias partes y el progreso de cada pago grupal. Confirmar tu parte no confirma por sí solo el pago completo.
       </p>
-      {notice && <p className="mt-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-900" role="status">{notice}</p>}
+      {notice && <p className="ui-feedback payment-notice" role="status">{notice}</p>}
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-        <section aria-labelledby="family-pending-heading" className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xl font-semibold text-slate-950" id="family-pending-heading">Mis partes pendientes</h3>
+      <div className="payments-stack">
+        <section aria-labelledby="family-pending-heading" className="payments-section">
+          <div className="payments-section-heading">
+            <h2 id="family-pending-heading">Mis partes pendientes</h2>
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={pendingLoading || sendingPaymentId !== null}
               onClick={reloadPending}
               type="button"
@@ -644,30 +646,30 @@ export default function FamilyPaymentsPanel({
               Actualizar pendientes
             </button>
           </div>
-          <p className="mt-2 text-sm text-slate-500">Hasta 100 partes propias, por fecha prevista del pago más reciente.</p>
+          <p className="payments-description">Hasta 100 partes propias, por fecha prevista del pago más reciente.</p>
           {pendingLoading ? (
-            <p className="mt-6 text-sm text-slate-600" role="status">Cargando tus partes…</p>
+            <p className="payment-state" role="status">Cargando tus partes…</p>
           ) : pending.error ? (
-            <div className="mt-5 rounded-xl bg-red-50 px-4 py-3">
+            <div className="ui-feedback ui-feedback-error mt-5">
               <p className="text-sm text-red-700" role="alert">{pending.error}</p>
-              <button className="mt-3 min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={reloadPending} type="button">
+              <button className="ui-button ui-button-secondary mt-3" onClick={reloadPending} type="button">
                 Reintentar pendientes
               </button>
             </div>
           ) : pending.shares.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">
+            <p className="payment-state">
               No tienes partes pendientes. Si te incorporaste después de generar un pago, no se crea una cuota retroactiva.
             </p>
           ) : (
-            <ul className="mt-5 space-y-4">{pending.shares.map((share) => renderShareItem(share, false))}</ul>
+            <ul className="payments-list">{pending.shares.map((share) => renderShareItem(share, false))}</ul>
           )}
         </section>
 
-        <section aria-labelledby="family-history-heading" className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xl font-semibold text-slate-950" id="family-history-heading">Historial de mis partes</h3>
+        <section aria-labelledby="family-history-heading" className="payments-section">
+          <div className="payments-section-heading">
+            <h2 id="family-history-heading">Historial de mis partes</h2>
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={historyLoading || sendingPaymentId !== null}
               onClick={reloadHistory}
               type="button"
@@ -675,29 +677,29 @@ export default function FamilyPaymentsPanel({
               Actualizar historial
             </button>
           </div>
-          <p className="mt-2 text-sm text-slate-500">Partes confirmadas u omitidas; el estado del pago completo puede ser distinto.</p>
+          <p className="payments-description">Partes confirmadas u omitidas; el estado del pago completo puede ser distinto.</p>
           {historyLoading ? (
-            <p className="mt-6 text-sm text-slate-600" role="status">Cargando historial…</p>
+            <p className="payment-state" role="status">Cargando historial…</p>
           ) : history.error ? (
-            <div className="mt-5 rounded-xl bg-red-50 px-4 py-3">
+            <div className="ui-feedback ui-feedback-error mt-5">
               <p className="text-sm text-red-700" role="alert">{history.error}</p>
-              <button className="mt-3 min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={reloadHistory} type="button">
+              <button className="ui-button ui-button-secondary mt-3" onClick={reloadHistory} type="button">
                 Reintentar historial
               </button>
             </div>
           ) : history.shares.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">Todavía no tienes partes confirmadas u omitidas.</p>
+            <p className="payment-state">Todavía no tienes partes confirmadas u omitidas.</p>
           ) : (
-            <ul className="mt-5 space-y-4">{history.shares.map((share) => renderShareItem(share, true))}</ul>
+            <ul className="payments-list">{history.shares.map((share) => renderShareItem(share, true))}</ul>
           )}
         </section>
       </div>
 
-      <section aria-labelledby="family-unassigned-heading" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xl font-semibold text-slate-950" id="family-unassigned-heading">Pagos grupales sin una parte tuya</h3>
+      <section aria-labelledby="family-unassigned-heading" className="payments-section mt-9">
+        <div className="payments-section-heading">
+          <h2 id="family-unassigned-heading">Pagos grupales sin una parte tuya</h2>
           <button
-            className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            className="ui-button ui-button-secondary"
             disabled={paymentsLoading || sendingPaymentId !== null}
             onClick={reloadPayments}
             type="button"
@@ -705,28 +707,28 @@ export default function FamilyPaymentsPanel({
             Actualizar pagos grupales
           </button>
         </div>
-        <p className="mt-2 text-sm text-slate-500">
-          Pagos pendientes generados antes de que tuvieras una parte. Puedes consultar el reparto; solo el owner puede omitir el pago completo.
+        <p className="payments-description">
+          Pagos pendientes generados antes de que tuvieras una parte. Puedes consultar el reparto; solo el responsable puede omitir el pago completo.
         </p>
         {paymentsLoading ? (
-          <p className="mt-6 text-sm text-slate-600" role="status">Comprobando pagos y tus partes…</p>
+          <p className="payment-state" role="status">Comprobando pagos y tus partes…</p>
         ) : unresolvedPayments.error ? (
-          <div className="mt-5 rounded-xl bg-red-50 px-4 py-3">
+          <div className="ui-feedback ui-feedback-error mt-5">
             <p className="text-sm text-red-700" role="alert">{unresolvedPayments.error}</p>
-            <button className="mt-3 min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={reloadPayments} type="button">
+            <button className="ui-button ui-button-secondary mt-3" onClick={reloadPayments} type="button">
               Reintentar pagos grupales
             </button>
           </div>
         ) : pendingLoading || historyLoading ? (
-          <p className="mt-6 text-sm text-slate-600" role="status">Comprobando pagos y tus partes…</p>
+          <p className="payment-state" role="status">Comprobando pagos y tus partes…</p>
         ) : pending.error || history.error ? (
-          <p className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+          <p className="payment-state" role="status">
             No podemos determinar con seguridad cuáles pagos carecen de una parte tuya. Reintenta cargar tus partes y el historial.
           </p>
         ) : paymentsWithoutOwnShare.length === 0 ? (
-          <p className="mt-6 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-600">No hay pagos pendientes sin una parte tuya registrada.</p>
+          <p className="payment-state">No hay pagos pendientes sin una parte tuya registrada.</p>
         ) : (
-          <ul className="mt-5 space-y-4">{paymentsWithoutOwnShare.map(renderPaymentWithoutOwnShare)}</ul>
+          <ul className="payments-list">{paymentsWithoutOwnShare.map(renderPaymentWithoutOwnShare)}</ul>
         )}
       </section>
     </section>

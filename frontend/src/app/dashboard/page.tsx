@@ -8,6 +8,7 @@ import PaymentsPanel from './payments-panel';
 import FamilyPaymentsPanel from './family-payments-panel';
 import FamilyGroupsPanel from './family-groups-panel';
 import InvitationsPanel from './invitations-panel';
+import AppShell from '@/components/app-shell';
 
 type Group = {
   id: string;
@@ -100,6 +101,7 @@ export default function DashboardPage() {
   const [groupsError, setGroupsError] = useState('');
   const [groupsVersion, setGroupsVersion] = useState(0);
   const [groupContextNotice, setGroupContextNotice] = useState('');
+  const [familyCreateOpen, setFamilyCreateOpen] = useState(false);
   const [userName, setUserName] = useState('');
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsContextId, setSubscriptionsContextId] = useState<string | null>(null);
@@ -114,6 +116,10 @@ export default function DashboardPage() {
   const [subscriptionsVersion, setSubscriptionsVersion] = useState(0);
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [editedCost, setEditedCost] = useState('');
+  const [createFormContext, setCreateFormContext] = useState<string | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const createFocusRequestRef = useRef<string | null>(null);
 
   const applyUrlContext = useCallback((availableGroups: Group[], currentPersonalGroupId: string, resetWithoutContext = false) => {
     const currentUrl = new URL(window.location.href);
@@ -130,6 +136,7 @@ export default function DashboardPage() {
         setViewVersions((current) => ({ ...current, subscriptions: current.subscriptions + 1 }));
         setSubscriptionsVersion((current) => current + 1);
         setForm(initialForm);
+        setCreateFormContext(null);
         setFormError('');
         setSubscriptionActionError('');
         setEditingCostId(null);
@@ -160,6 +167,7 @@ export default function DashboardPage() {
         selectedGroupIdRef.current = group.id;
         setGroupId(group.id);
         setForm(initialForm);
+        setCreateFormContext(null);
         setFormError('');
         setSubscriptionActionError('');
         setEditingCostId(null);
@@ -178,6 +186,7 @@ export default function DashboardPage() {
     setViewVersions((current) => ({ ...current, subscriptions: current.subscriptions + 1 }));
     setSubscriptionsVersion((current) => current + 1);
     setForm(initialForm);
+    setCreateFormContext(null);
     setFormError('');
     setSubscriptionActionError('');
     setEditingCostId(null);
@@ -283,6 +292,7 @@ export default function DashboardPage() {
           setGroupId(currentPersonalGroupId);
           setActiveView('subscriptions');
           setForm(initialForm);
+          setCreateFormContext(null);
           setFormError('');
           setSubscriptionActionError('');
           setEditingCostId(null);
@@ -345,6 +355,37 @@ export default function DashboardPage() {
   const selectedGroup = groups.find((group) => group.id === groupId) ?? null;
   const isPersonalGroup = groupId !== null && groupId === personalGroupId;
   const canManageSubscriptions = isPersonalGroup || (groupsState === 'ready' && selectedGroup?.role === 'owner');
+  const createContext = `${groupId}:${selectedGroup?.ownerId ?? ''}`;
+  const createFormVisible = canManageSubscriptions && createFormContext === createContext;
+
+  useEffect(() => {
+    if (createFocusRequestRef.current === null) return;
+    if (createFocusRequestRef.current !== createContext || pageState !== 'ready' || activeView !== 'subscriptions') {
+      createFocusRequestRef.current = null;
+      return;
+    }
+    if (isSaving || pendingSubscriptionId !== null || groupActionPending || groupsState !== 'ready' || createFormVisible) return;
+    if (!canManageSubscriptions) {
+      createFocusRequestRef.current = null;
+      return;
+    }
+    // Wait for React to commit the closed form and enabled trigger before focusing it.
+    const button = createButtonRef.current;
+    if (button && !button.disabled) {
+      button.focus();
+      createFocusRequestRef.current = null;
+    }
+  }, [createContext, pageState, activeView, isSaving, pendingSubscriptionId, groupActionPending, groupsState, createFormVisible, canManageSubscriptions]);
+
+  function openCreateForm() {
+    setCreateFormContext(createContext);
+    requestAnimationFrame(() => nameInputRef.current?.focus());
+  }
+
+  function closeCreateForm() {
+    setCreateFormContext(null);
+    requestAnimationFrame(() => createButtonRef.current?.focus());
+  }
 
   function changeView(view: DashboardView) {
     if (isSaving || pendingSubscriptionId !== null || groupActionPending) return;
@@ -361,7 +402,9 @@ export default function DashboardPage() {
     selectedGroupIdRef.current = nextGroupId;
     setGroupId(nextGroupId);
     setGroupContextNotice('');
+    setFamilyCreateOpen(false);
     setForm(initialForm);
+    setCreateFormContext(null);
     setFormError('');
     setSubscriptionActionError('');
     setEditingCostId(null);
@@ -376,10 +419,12 @@ export default function DashboardPage() {
         : [...current, updatedGroup];
     });
     if (selectGroup) {
+      setFamilyCreateOpen(false);
       setGroupContextNotice('');
       selectedGroupIdRef.current = updatedGroup.id;
       setGroupId(updatedGroup.id);
       setForm(initialForm);
+      setCreateFormContext(null);
       setFormError('');
       setSubscriptionActionError('');
       setEditingCostId(null);
@@ -390,10 +435,12 @@ export default function DashboardPage() {
 
   function returnToPersonalGroup() {
     if (personalGroupId) {
+      setFamilyCreateOpen(false);
       setGroupContextNotice('Saliste de la familia y volviste a tu grupo personal.');
       selectedGroupIdRef.current = personalGroupId;
       setGroupId(personalGroupId);
       setForm(initialForm);
+      setCreateFormContext(null);
       setFormError('');
       setSubscriptionActionError('');
       setEditingCostId(null);
@@ -417,6 +464,8 @@ export default function DashboardPage() {
 
       setSubscriptions((current) => [result.subscription, ...current]);
       setForm(initialForm);
+      setCreateFormContext(null);
+      createFocusRequestRef.current = createContext;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) handleSessionExpired();
       setFormError(errorText(error));
@@ -484,6 +533,7 @@ export default function DashboardPage() {
       if (!result) throw new Error('El servidor no devolvió la suscripción actualizada.');
       setSubscriptions((current) => current.map((item) => item.id === subscription.id ? result.subscription : item));
       setEditingCostId(null);
+      requestAnimationFrame(() => document.getElementById(`subscription-management-${subscription.id}`)?.focus());
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) handleSessionExpired();
       setSubscriptionActionError(errorText(error));
@@ -533,32 +583,67 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="flex flex-1 justify-center px-6 py-10 sm:py-14">
-      <div className="w-full max-w-5xl">
-        <header className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <Link className="text-sm font-medium text-violet-700 hover:text-violet-900" href="/">
-              ← Inicio
-            </Link>
-            <Link className="ml-5 text-sm font-medium text-violet-700 hover:text-violet-900" href="/notifications">
-              Notificaciones
-            </Link>
-            <p className="mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-              {isPersonalGroup ? 'Tu espacio personal' : selectedGroup?.name ?? 'Grupo familiar'}
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              Hola{userName ? `, ${userName}` : ''}
-            </h1>
-            <p className="mt-2 text-slate-600">
-              {canManageSubscriptions
-                ? 'Administra las suscripciones y consulta las próximas fechas de cobro.'
-                : 'Consulta las suscripciones y las partes de pago de este grupo.'}
-            </p>
-          </div>
-          <div className="w-full space-y-3 sm:w-auto sm:min-w-64">
-            <label className="block text-sm font-medium text-slate-700" htmlFor="dashboard-group">Espacio</label>
+    <AppShell
+      title={dashboardViews.find((view) => view.id === activeView)?.label ?? 'Suscripciones'}
+      description={activeView === 'subscriptions'
+        ? canManageSubscriptions
+          ? 'Administra los servicios de este espacio y sus próximas fechas de cobro.'
+          : 'Consulta los servicios y sus próximas fechas de cobro.'
+        : activeView === 'payments'
+          ? isPersonalGroup
+            ? 'Consulta tus pagos pendientes y el historial de importes registrados.'
+            : 'Registra tu parte y consulta cómo va el pago compartido.'
+          : 'Consulta tus familias, sus miembros y las opciones de administración disponibles.'}
+      userName={userName}
+      actions={activeView === 'subscriptions' && canManageSubscriptions ? (
+        <button
+          className="ui-button"
+          type="button"
+          ref={createButtonRef}
+          aria-expanded={createFormVisible}
+          aria-controls="subscription-create-panel"
+          disabled={isSaving || pendingSubscriptionId !== null || groupActionPending || groupsState !== 'ready'}
+          onClick={openCreateForm}
+        >
+          Añadir suscripción
+        </button>
+      ) : activeView === 'family' && pageState === 'ready' ? (
+        <button
+          aria-controls="family-create-panel"
+          aria-expanded={familyCreateOpen}
+          className="ui-button"
+          disabled={groupActionPending || groupsState !== 'ready'}
+          onClick={() => setFamilyCreateOpen((open) => !open)}
+          type="button"
+        >
+          {familyCreateOpen ? 'Cerrar formulario' : selectedGroup?.type === 'family' ? 'Crear otra familia' : 'Crear familia'}
+        </button>
+      ) : undefined}
+      navigation={
+        <nav aria-label="Secciones del dashboard" className="app-shell-navigation">
+          {dashboardViews.map((view) => (
+            <button
+              aria-controls={`dashboard-view-${view.id}`}
+              aria-pressed={activeView === view.id}
+              className="app-shell-nav-item"
+              disabled={isSaving || pendingSubscriptionId !== null || groupActionPending}
+              id={`dashboard-nav-${view.id}`}
+              key={view.id}
+              onClick={() => changeView(view.id)}
+              type="button"
+            >
+              {view.label}
+            </button>
+          ))}
+          <Link className="app-shell-nav-item" href="/notifications">Notificaciones</Link>
+        </nav>
+      }
+      context={
+        <>
+          <div className="app-shell-space">
+            <label htmlFor="dashboard-group">Espacio de trabajo</label>
             <select
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
+              className="ui-field"
               disabled={groupsState !== 'ready' || isSaving || pendingSubscriptionId !== null || groupActionPending}
               id="dashboard-group"
               onChange={(event) => changeSelectedGroup(event.target.value)}
@@ -569,63 +654,49 @@ export default function DashboardPage() {
               )}
               {groups.map((group) => (
                 <option key={group.id} value={group.id}>
-                  {group.name} · {group.type === 'personal' ? 'Personal' : group.role === 'owner' ? 'Familiar · owner' : 'Familiar · miembro'}
+                  {group.name} · {group.type === 'personal' ? 'Personal' : group.role === 'owner' ? 'Familiar · Responsable' : 'Familiar · Miembro'}
                 </option>
               ))}
             </select>
             {groupsState === 'error' && (
-              <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <div className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 <p role="alert">{groupsError}</p>
-                <button className="mt-2 font-medium underline" onClick={retryGroups} type="button">Reintentar grupos</button>
+                <button className="mt-2 min-h-11 font-medium underline" onClick={retryGroups} type="button">Reintentar grupos</button>
               </div>
             )}
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-              {subscriptionsContextId === groupId && subscriptionsState === 'ready'
-                ? `${subscriptions.length} ${subscriptions.length === 1 ? 'suscripción' : 'suscripciones'}`
-                : 'Suscripciones'}
-            </div>
           </div>
-        </header>
-
+          <p className="app-shell-role">
+            {isPersonalGroup ? 'Espacio personal' : 'Grupo familiar'}
+            <strong>{groupsState === 'ready'
+              ? selectedGroup?.role === 'member' ? 'Miembro' : 'Responsable'
+              : 'Actualizando permisos…'}</strong>
+          </p>
+        </>
+      }
+    >
         {groupContextNotice && (
           <p className="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">{groupContextNotice}</p>
         )}
 
-        <nav aria-label="Secciones del dashboard" className="mb-8 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
-          {dashboardViews.map((view) => (
-            <button
-              aria-controls={`dashboard-view-${view.id}`}
-              aria-pressed={activeView === view.id}
-              className={`min-h-11 rounded-xl px-1 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:cursor-wait disabled:opacity-60 sm:px-4 sm:text-sm ${activeView === view.id ? 'bg-white text-violet-800 shadow-sm' : 'text-slate-600 hover:bg-white/60 hover:text-slate-950'}`}
-              disabled={isSaving || pendingSubscriptionId !== null || groupActionPending}
-              id={`dashboard-nav-${view.id}`}
-              key={view.id}
-              onClick={() => changeView(view.id)}
-              type="button"
-            >
-              {view.label}
-            </button>
-          ))}
-        </nav>
-
         {/* Cada entrada recarga los datos; hidden conserva borradores y operaciones del mismo grupo. */}
         <section aria-labelledby="dashboard-nav-subscriptions" hidden={activeView !== 'subscriptions'} id="dashboard-view-subscriptions">
-        <div className={`grid gap-6 ${canManageSubscriptions ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]' : ''}`}>
-          {canManageSubscriptions && <section className="h-fit rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h2 className="text-xl font-semibold text-slate-950">Añadir suscripción</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+        <div className="subscriptions-layout">
+          {canManageSubscriptions && <section className="app-design app-design-sample subscription-create h-fit p-6 sm:p-8" hidden={!createFormVisible} id="subscription-create-panel" aria-labelledby="subscription-create-title">
+            <h2 className="app-design-title text-xl font-semibold" id="subscription-create-title">Añadir suscripción</h2>
+            <p className="app-design-copy mt-2 text-sm leading-6">
               Completa los datos principales del servicio.
             </p>
 
             <form className="mt-6 space-y-4" onSubmit={createSubscription}>
-              <fieldset className="space-y-4 disabled:opacity-60" disabled={!canManageSubscriptions}>
+              <fieldset className="subscription-form-fields disabled:opacity-60" disabled={!canManageSubscriptions}>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="subscription-name">
+                <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor="subscription-name">
                   Nombre
                 </label>
                 <input
-                  className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                  className="ui-field"
                   id="subscription-name"
+                  ref={nameInputRef}
                   maxLength={255}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
                   required
@@ -634,11 +705,11 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="subscription-provider">
+                <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor="subscription-provider">
                   Proveedor
                 </label>
                 <input
-                  className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                  className="ui-field"
                   id="subscription-provider"
                   maxLength={255}
                   onChange={(event) => setForm({ ...form, provider: event.target.value })}
@@ -647,13 +718,13 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="subscription-form-row">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="subscription-cost">
+                  <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor="subscription-cost">
                     Coste esperado
                   </label>
                   <input
-                    className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                    className="ui-field"
                     id="subscription-cost"
                     min="0"
                     onChange={(event) => setForm({ ...form, expectedCost: event.target.value })}
@@ -665,11 +736,11 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="subscription-cycle">
+                  <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor="subscription-cycle">
                     Ciclo
                   </label>
                   <select
-                    className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                    className="ui-field"
                     id="subscription-cycle"
                     onChange={(event) => setForm({ ...form, billingCycle: event.target.value as Subscription['billingCycle'] })}
                     value={form.billingCycle}
@@ -683,11 +754,11 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="subscription-date">
+                <label className="app-design-label mb-1.5 block text-sm font-medium" htmlFor="subscription-date">
                   Próxima fecha de cobro
                 </label>
                 <input
-                  className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+                  className="ui-field"
                   id="subscription-date"
                   onChange={(event) => setForm({ ...form, nextBillingDate: event.target.value })}
                   required
@@ -697,139 +768,150 @@ export default function DashboardPage() {
               </div>
 
               {formError && (
-                <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                <p className="ui-feedback ui-feedback-error" role="alert">
                   {formError}
                 </p>
               )}
 
+              <div className="subscription-form-actions">
               <button
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-700 px-5 font-medium text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="ui-button"
                 disabled={isSaving || pendingSubscriptionId !== null || subscriptionsState !== 'ready'}
                 type="submit"
               >
                 {isSaving ? 'Guardando…' : 'Guardar suscripción'}
               </button>
+              <button className="ui-button ui-button-secondary" disabled={isSaving || pendingSubscriptionId !== null} onClick={closeCreateForm} type="button">Cancelar</button>
+              </div>
               </fieldset>
             </form>
           </section>}
 
-          <section>
-            <h2 className="mb-4 text-xl font-semibold text-slate-950">Suscripciones</h2>
+          <section className="subscription-catalog" aria-label="Listado de suscripciones">
             {!canManageSubscriptions && (
-              <p className="mb-4 text-sm text-slate-600">Solo el owner puede modificar las suscripciones de este grupo.</p>
+              <p className="app-design-copy mb-4 text-sm">Solo el responsable puede modificar las suscripciones de este grupo.</p>
             )}
             {subscriptionActionError && (
-              <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              <p className="ui-feedback ui-feedback-error mb-4" role="alert">
                 {subscriptionActionError}
               </p>
             )}
             {subscriptionsContextId !== groupId || subscriptionsState === 'loading' ? (
-              <p className="rounded-3xl border border-slate-200 bg-white p-6 text-slate-600" role="status">Cargando suscripciones…</p>
+              <p className="subscription-state" role="status">Cargando suscripciones…</p>
             ) : subscriptionsState === 'error' ? (
-              <div className="rounded-3xl border border-red-200 bg-white p-6">
+              <div className="subscription-state">
                 <p className="text-sm text-red-700" role="alert">{subscriptionsError}</p>
-                <button className="mt-3 min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setSubscriptionsVersion((current) => current + 1)} type="button">
+                <button className="mt-3 min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setSubscriptionsVersion((current) => current + 1)} type="button">
                   Reintentar suscripciones
                 </button>
               </div>
             ) : subscriptions.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-                <p className="font-medium text-slate-800">Este grupo todavía no tiene suscripciones</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+              <div className="subscription-state subscription-state-empty">
+                <strong>Este espacio todavía no tiene suscripciones</strong>
+                <p className="mt-2 text-sm leading-6">
                   {canManageSubscriptions
-                    ? 'Añade la primera con el formulario para empezar a llevar el control.'
-                    : 'El owner puede añadir la primera suscripción del grupo.'}
+                    ? 'Selecciona «Añadir suscripción» para registrar el primer servicio.'
+                    : 'El responsable puede añadir la primera suscripción del grupo.'}
                 </p>
               </div>
             ) : (
-              <ul className="space-y-4">
+              <div className="subscription-sheet">
+                <div className={`subscription-column-head${canManageSubscriptions ? ' subscription-column-head-managed' : ''}`} aria-hidden="true">
+                  <span>Servicio</span>
+                  <div className="subscription-column-values"><span>Próximo cobro</span><span>Coste previsto</span><span>Estado</span></div>
+                  {canManageSubscriptions && <span>Acciones</span>}
+                </div>
+              <ul aria-label="Servicios del espacio seleccionado">
                 {subscriptions.map((subscription) => (
-                  <li className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" key={subscription.id}>
-                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-semibold text-slate-950">{subscription.name}</h3>
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${subscription.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                  <li className="subscription-row" key={subscription.id}>
+                    <div className={`subscription-overview${canManageSubscriptions ? ' subscription-overview-managed' : ''}`}>
+                      <div className="subscription-service">
+                        <h2>{subscription.name}</h2>
+                        <p>{subscription.provider} · {cycleLabels[subscription.billingCycle]}</p>
+                      </div>
+                      <dl className="subscription-facts">
+                        <div>
+                          <dt>Próximo cobro</dt>
+                          <dd><time dateTime={subscription.nextBillingDate}>{displayDate(subscription.nextBillingDate)}</time></dd>
+                        </div>
+                        <div>
+                          <dt>Coste previsto</dt>
+                          <dd className="subscription-cost">{subscription.expectedCost}</dd>
+                        </div>
+                        <div>
+                          <dt>Estado</dt>
+                          <dd className={subscription.active ? 'subscription-state-active' : 'subscription-state-inactive'}>
                             {subscription.active ? 'Activa' : 'Inactiva'}
-                          </span>
+                          </dd>
                         </div>
-                        <p className="mt-1 text-sm text-slate-600">{subscription.provider}</p>
-                      </div>
-                      <p className="text-lg font-semibold text-slate-950">{subscription.expectedCost}</p>
+                      </dl>
+                      {canManageSubscriptions && <details className="subscription-admin" open={editingCostId === subscription.id || undefined}>
+                        <summary id={`subscription-management-${subscription.id}`}>Gestionar suscripción<span className="sr-only"> {subscription.name}</span></summary>
+                        {editingCostId === subscription.id && (
+                          <form className="subscription-cost-form" onSubmit={(event) => void saveExpectedCost(event, subscription)}>
+                            <label className="app-design-label" htmlFor={`expected-cost-${subscription.id}`}>
+                              Nuevo coste esperado de {subscription.name}
+                            </label>
+                            <input
+                              aria-describedby={`cost-help-${subscription.id}`}
+                              className="ui-field"
+                              disabled={pendingSubscriptionId !== null || isSaving}
+                              id={`expected-cost-${subscription.id}`}
+                              max="9999999999.99"
+                              min="0"
+                              onChange={(event) => setEditedCost(event.target.value)}
+                              required
+                              step="0.01"
+                              type="number"
+                              value={editedCost}
+                            />
+                            <p className="text-sm text-slate-600" id={`cost-help-${subscription.id}`}>
+                              Se usará en los próximos pagos que se generen. Los pagos ya registrados conservarán su importe esperado.
+                            </p>
+                            <div className="subscription-form-actions">
+                              <button className="ui-button" disabled={pendingSubscriptionId !== null || isSaving} type="submit">
+                                {pendingSubscriptionId === subscription.id ? 'Guardando…' : 'Guardar coste'}
+                              </button>
+                              <button className="ui-button ui-button-secondary" disabled={pendingSubscriptionId !== null || isSaving} onClick={() => { setEditingCostId(null); requestAnimationFrame(() => document.getElementById(`subscription-management-${subscription.id}`)?.focus()); }} type="button">
+                                Cancelar edición
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        <div className="subscription-actions">
+                          <button
+                            className="ui-button ui-button-secondary"
+                            disabled={pendingSubscriptionId !== null || isSaving}
+                            onClick={() => void toggleSubscription(subscription)}
+                            type="button"
+                          >
+                            {subscription.active ? 'Desactivar' : 'Activar'}
+                          </button>
+                          <button
+                            className="ui-button ui-button-secondary"
+                            disabled={pendingSubscriptionId !== null || isSaving}
+                            id={`change-cost-${subscription.id}`}
+                            onClick={() => { setEditingCostId(subscription.id); setEditedCost(subscription.expectedCost); setSubscriptionActionError(''); requestAnimationFrame(() => document.getElementById(`expected-cost-${subscription.id}`)?.focus()); }}
+                            type="button"
+                          >
+                            Cambiar coste
+                          </button>
+                          <button
+                            className="ui-button ui-button-danger"
+                            disabled={pendingSubscriptionId !== null || isSaving}
+                            onClick={() => void removeSubscription(subscription)}
+                            type="button"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </details>}
                     </div>
-
-                    <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 text-sm">
-                      <div>
-                        <dt className="text-slate-500">Ciclo</dt>
-                        <dd className="mt-1 font-medium text-slate-800">{cycleLabels[subscription.billingCycle]}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-slate-500">Próximo cobro</dt>
-                        <dd className="mt-1 font-medium text-slate-800">{displayDate(subscription.nextBillingDate)}</dd>
-                      </div>
-                    </dl>
-
-                    {editingCostId === subscription.id && (
-                      <form className="mt-5 space-y-3 border-t border-slate-100 pt-4" onSubmit={(event) => void saveExpectedCost(event, subscription)}>
-                        <label className="block text-sm font-medium text-slate-700" htmlFor={`expected-cost-${subscription.id}`}>
-                          Nuevo coste esperado de {subscription.name}
-                        </label>
-                        <input
-                          aria-describedby={`cost-help-${subscription.id}`}
-                          className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
-                          disabled={pendingSubscriptionId !== null || isSaving}
-                          id={`expected-cost-${subscription.id}`}
-                          max="9999999999.99"
-                          min="0"
-                          onChange={(event) => setEditedCost(event.target.value)}
-                          required
-                          step="0.01"
-                          type="number"
-                          value={editedCost}
-                        />
-                        <p className="text-sm text-slate-600" id={`cost-help-${subscription.id}`}>
-                          Se usará en los próximos pagos que se generen. Los pagos ya registrados conservarán su importe esperado.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <button className="min-h-10 rounded-lg bg-violet-700 px-3 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-60" disabled={pendingSubscriptionId !== null || isSaving} type="submit">
-                            {pendingSubscriptionId === subscription.id ? 'Guardando…' : 'Guardar coste'}
-                          </button>
-                          <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 disabled:opacity-60" disabled={pendingSubscriptionId !== null || isSaving} onClick={() => setEditingCostId(null)} type="button">
-                            Cancelar edición
-                          </button>
-                        </div>
-                      </form>
-                    )}
-
-                    {canManageSubscriptions && <div className="mt-5 flex flex-wrap gap-2">
-                      <button
-                        className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        disabled={pendingSubscriptionId !== null || isSaving}
-                        onClick={() => void toggleSubscription(subscription)}
-                        type="button"
-                      >
-                        {subscription.active ? 'Desactivar' : 'Activar'}
-                      </button>
-                      <button
-                        className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        disabled={pendingSubscriptionId !== null || isSaving}
-                        onClick={() => { setEditingCostId(subscription.id); setEditedCost(subscription.expectedCost); setSubscriptionActionError(''); }}
-                        type="button"
-                      >
-                        Editar coste
-                      </button>
-                      <button
-                        className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-                        disabled={pendingSubscriptionId !== null || isSaving}
-                        onClick={() => void removeSubscription(subscription)}
-                        type="button"
-                      >
-                        Eliminar
-                      </button>
-                    </div>}
                   </li>
                 ))}
               </ul>
+              </div>
             )}
           </section>
         </div>
@@ -855,12 +937,19 @@ export default function DashboardPage() {
         </section>
 
         <section aria-labelledby="dashboard-nav-family" hidden={activeView !== 'family'} id="dashboard-view-family">
+        <div className="app-shell-invitation">
+          <p>¿Te compartieron un código para entrar a una familia?</p>
+          <Link href="/invitations">Tengo un código de invitación</Link>
+        </div>
+
         <FamilyGroupsPanel
+          createFamilyOpen={familyCreateOpen}
           group={selectedGroup?.type === 'family' ? selectedGroup : null}
           groupsReady={groupsState === 'ready'}
-          key={`${groupId}:${selectedGroup?.ownerId}:${selectedGroup?.role}`}
+          key={`family-groups:${groupId}:${selectedGroup?.ownerId}:${selectedGroup?.role}`}
           onGroupUpdated={applyGroupUpdate}
           onLeftGroup={returnToPersonalGroup}
+          onCreateFamilyOpenChange={setFamilyCreateOpen}
           onRefreshGroups={refreshGroupsAfterForbidden}
           onSessionExpired={handleSessionExpired}
           onWorkingChange={setGroupActionPending}
@@ -870,14 +959,13 @@ export default function DashboardPage() {
           <InvitationsPanel
             groupId={groupId}
             groupName={selectedGroup.name}
-            key={`${groupId}:${selectedGroup.ownerId}:${selectedGroup.role}`}
+            key={`family-invitations:${groupId}:${selectedGroup.ownerId}:${selectedGroup.role}`}
             onAccessForbidden={refreshGroupsAfterForbidden}
             onSessionExpired={handleSessionExpired}
             refreshVersion={viewVersions.family}
           />
         )}
         </section>
-      </div>
-    </main>
+    </AppShell>
   );
 }

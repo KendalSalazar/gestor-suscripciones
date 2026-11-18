@@ -1,6 +1,6 @@
 # Propuesta visual de Fase 7
 
-Fecha: 15 de noviembre de 2026. Estado: propuesta para aprobación; no aplicada al producto.
+Actualizada: 16 de noviembre de 2026. Dirección visual aceptada con ajustes del propietario; propuesta todavía no aplicada al producto.
 
 Abrir [propuesta.html](propuesta.html) directamente en un navegador. No necesita
 servidor, red, dependencias ni cuentas. Sus datos son ficticios. La barra superior
@@ -20,8 +20,8 @@ añadir decoración. Se descartó un mosaico de métricas y tarjetas equivalente
 porque repetiría el problema de secciones que compiten por atención. La lista
 queda en primer plano y los formularios se abren cuando la persona los necesita.
 
-El rasgo visual principal es el acento verde petróleo en selección, confirmación
-y fechas. El resto se apoya en filas, separación y tipografía. No hay gradientes,
+El rasgo visual principal es el violeta `#CF7FFF` solicitado por el propietario en botones y marca. La variante
+oscura `#78269E` da legibilidad a selección, enlaces, foco y fechas. El resto se apoya en filas, separación y tipografía. No hay gradientes,
 fotografías, gráficos ficticios ni animaciones automáticas. Las iniciales de los
 servicios y personas son datos de demostración, no logotipos de proveedores.
 
@@ -34,14 +34,17 @@ servicios y personas son datos de demostración, no logotipos de proveedores.
 | Texto principal | `#1D2B3A` |
 | Texto secundario | `#526375` |
 | Líneas | `#D6DFE8` |
-| Acción y foco | `#006B75` |
+| Marca y fondo de acción principal | `#CF7FFF` |
+| Enlaces, selección y foco | `#78269E` |
 
-Apoyos semánticos: selección `#E5F3F3`, éxito `#236546`, aviso `#76500C`,
+Apoyos semánticos: selección `#F7EBFD`, éxito `#236546`, aviso `#76500C`,
 error/peligro `#A12732`. Estado siempre con palabras, además de color. Los bordes
 de campos son más oscuros (`#8295A7`) que los separadores decorativos para que los
 controles sigan siendo identificables. Ratios calculados con luminancia relativa
 sRGB, sin transparencia: texto principal/blanco 14.39:1, secundario/blanco 6.18:1,
-blanco/acento 6.25:1, acento/fondo 5.77:1 y borde de campo/blanco 3.09:1.
+texto de botón `#111018`/marca 7.32:1, enlaces `#78269E`/blanco 8.17:1,
+enlaces/selección lavanda 7.10:1, foco/fondo 7.54:1 y borde de campo/blanco 3.09:1.
+El blanco sobre la marca solo alcanza 2.58:1, por eso los botones usan texto oscuro.
 Éxito/blanco 6.95:1, aviso/blanco 7.18:1 y peligro/blanco 7.36:1.
 Son cálculos de pares de tokens; no sustituyen inspeccionar todos los estados
 y colores compuestos reales al renderizar.
@@ -67,12 +70,12 @@ selector después de navegación, filas reorganizadas sin tablas que desborden.
   Cuota propia, importe registrado y estado de parte separados del total previsto,
   confirmado y estado del grupo. Reparto bajo expansión; no sumar listas parciales.
 - **Familia:** miembros primero, invitar para responsable, entrada con código
-  siempre localizable. Gestión de nombre/propiedad/miembros en administración
+  únicamente dentro de Familia, disponible para responsable/miembro y sin familia. Gestión de nombre/propiedad/miembros en administración
   secundaria. Para miembro, salida separada con contexto de obligaciones.
 - **Notificaciones:** nombre de servicio primero; evento y estado de lectura
   distinguibles. El aviso conserva el contexto y el enlace al pago. Filtro de
   espacios propio del centro, independiente del selector de trabajo del dashboard.
-- **Invitación:** acceso directo visible. Solo se representa la entrada del código;
+- **Invitación:** acceso desde Familia; eliminado de la navegación global por petición del propietario. Solo se representa la entrada del código;
   revisión/aceptación/rechazo reales conservarán la página y contrato actuales.
 
 La vista de miembro oculta acciones exclusivas de responsable, conservando la
@@ -124,7 +127,13 @@ Conservar rutas, API/sesión actuales, `hidden`, claves de grupo/owner/rol,
 cancelaciones, recargas, límites de listas y borradores. El contenedor compartido
 será presentacional. Backend y contratos quedan fuera de estos cambios.
 
-Antes del bloque 3: aprobación de esta dirección y capturas base autenticadas
+Antes del bloque 3: registrar la aprobación y capturas base autenticadas
 pendientes del bloque 1. Las capturas de esta maqueta no reemplazan la evidencia
 del producto antes de modificarlo. El diseñador no tomó capturas ni inició
 servidores para preparar estos dos archivos.
+
+Actualización posterior, bloque 3: el principal completó las capturas reales
+antes de aplicar estilos, con las cuentas de prueba autorizadas. Referencias:
+[estado inicial](estado-inicial/README.md) y [muestra y comprobaciones](bloque-3/README.md).
+La limitación previa de capturas queda resuelta; la regresión integral continúa
+en los bloques correspondientes del plan.

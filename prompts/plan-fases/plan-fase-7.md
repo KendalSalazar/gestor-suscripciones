@@ -1,6 +1,6 @@
 # Plan Fase 7 — Rediseño visual y organización del frontend
 
-**Estado al 15 de noviembre de 2026: bloque 1 completado con limitación visual documentada; propuesta del bloque 2 preparada e inspeccionada, pendiente de aprobación del propietario. Bloques 3 a 18 pendientes. No se modificó el producto.**
+**Estado al 17 de noviembre de 2026: bloques 1 a 10 implementados; el bloque 10 queda pendiente de revisión visual del propietario. Suscripciones ya fue revisada; Pagos personal/familiar está disponible para revisión. Diseño aprobado con acento #CF7FFF. Bloques 11 a 18 pendientes.**
 Alcance original en [07-fase.md](../07-fase.md). Una entrega por bloque, con
 explicación, comprobación y parada. Crear este plan no ejecuta sus bloques.
 
@@ -78,7 +78,9 @@ Comprobaciones ejecutadas ahora:
   Primer intento falló por conexión a Google Fonts; repetido con acceso de red
   terminó correctamente, sin cambiar fuentes ni código.
 - [x] Inventario de acciones/permisos y riesgos contrastado con los archivos.
-- [ ] Capturas base de 390 y 1440 px. Limitación: no hay herramienta conectada de
+- [x] Capturas base de 390 y 1440 px: completadas antes del CSS del bloque 3;
+  [índice de las 16 capturas reales](../diseno/fase-7/estado-inicial/README.md).
+  Limitación inicial del bloque 1: no había herramienta conectada de
   navegador ni sesión de prueba automatizada disponible. Se localizaron binarios
   de Chrome/Edge, pero no se lanzó una sesión autenticada ni se inspeccionó la
   interfaz. No se afirman contrastes, desbordes o comportamiento responsive verificados.
@@ -89,7 +91,11 @@ de prueba en el bloque 2: escritorio/móvil, personal owner, familia owner/membe
 Notificaciones e Invitación, sin códigos secretos visibles. Puede completarlo
 el propietario desde su navegador o el agente con un entorno autorizado.
 Las capturas de mockups futuros no reemplazan las del estado anterior.
-No se iniciaron servidores, jobs ni escrituras sobre cuentas o pagos.
+En aquel inventario no se iniciaron servidores, jobs ni escrituras sobre cuentas
+o pagos. Posteriormente se utilizó el frontend/API local y un perfil temporal de
+Chrome con cuentas de prueba autorizadas para completar las capturas antes del
+bloque 3. Login, refresh y logout usan la sesión normal; no se modificaron datos
+de suscripciones, pagos, membresías, invitaciones ni lecturas de notificaciones.
 
 ### Bloque 2 — Propuesta visual (15 de noviembre de 2026)
 
@@ -112,10 +118,13 @@ Preparada por el perfil `frontend-designer` con la skill `frontend-design`.
 - [x] Scripts y perfiles temporales del renderizado eliminados. Sin cambios en
   `frontend/src`, cuentas o base de datos. No se repitieron builds del producto
   porque solo se añadieron artefactos de diseño y documentación.
-- [ ] Aprobación visual del propietario antes del bloque 3, según `AGENTS.md`.
-- [ ] Capturas previas del producto autenticado: siguen pendientes de registrar
-  antes de cambiar estilos. Las imágenes siguientes representan la propuesta,
-  no el estado anterior de la aplicación.
+- [x] El propietario aceptó el diseño el 16 de noviembre y pidió dos ajustes:
+  acento `#CF7FFF` y acceso al código solo dentro de Familia. No se adelanta bloque 3.
+- [x] Capturas previas del producto autenticado registradas antes de cambiar
+  estilos: [estado inicial](../diseno/fase-7/estado-inicial/README.md), con owner
+  personal, owner/miembro en la misma familia, Notificaciones e Invitaciones de
+  ambas cuentas, y landing, a 1440/390 px. Las imágenes de la galería siguiente
+  siguen representando únicamente la propuesta.
 
 Galería de la propuesta:
 
@@ -131,9 +140,273 @@ Galería de la propuesta:
 | Lista vacía móvil | [390 px](../diseno/fase-7/vacio-movil.png) |
 
 Tokens elegidos por el diseñador: fondo `#F3F6FA`, superficie `#FFFFFF`, texto
-`#1D2B3A`, secundario `#526375`, línea `#D6DFE8` y acento `#006B75`.
+`#1D2B3A`, secundario `#526375`, línea `#D6DFE8` y acento `#CF7FFF`.
+Sobre el acento se utiliza texto oscuro; enlaces y foco usan un violeta oscuro
+derivado para conservar contraste. La entrada al código queda dentro de Familia,
+también cuando todavía no se pertenece a ninguna, sin enlace global duplicado.
+Actualización inspeccionada el 16 de noviembre: las ocho capturas se regeneraron
+con el nuevo color; el DOM confirma que no existe el enlace de código en la barra
+global y los escenarios móviles conservan un ancho de contenido de 390 px.
+Marca y fondos `#CF7FFF`, texto de botón `#111018` (7.32:1), enlaces/foco
+`#78269E` y selección `#F7EBFD`. Perfiles y script temporal eliminados.
 El prototipo usa fuente del sistema si Geist no está instalada; no descarga
 fuentes. La implementación posterior reutilizará la fuente ya cargada por Next.
+
+### Bloque 3 — Fundamentos (16 de noviembre de 2026)
+
+Implementado por `frontend-designer` con la skill `frontend-design`, siguiendo
+la propuesta aprobada. Revisado por `reviewer` sin hallazgos que requieran
+corrección en este alcance. Evidencia visual y límites en
+[comprobaciones del bloque 3](../diseno/fase-7/bloque-3/README.md).
+
+- [x] `globals.css`: tokens y estilos bajo `.app-design`, con marca `#CF7FFF`,
+  texto sobre marca `#111018`, foco `#78269E`, superficies, bordes y error.
+  La muestra usa Geist y `color-scheme: light` dentro de su ámbito.
+- [x] `dashboard/page.tsx`: solo 15 sustituciones de `className` en el alta
+  existente. Se conservan handlers, etiquetas/IDs, validaciones, permisos,
+  `disabled`, mensajes `role=alert`, `hidden` y borradores.
+- [x] Sin dependencias ni componentes React nuevos: las clases compartidas
+  resuelven la reutilización visual de esta muestra. No se adelantó el alta
+  bajo demanda ni la reorganización de navegación/listas.
+- [x] Capturas antes/después de la muestra a 1440/390 px inspeccionadas. Los
+  campos y el botón miden al menos 44 px; sin desborde a 390 px.
+- [x] Tab mueve el foco de Nombre a Proveedor y muestra contorno violeta de
+  3 px; también se comprobó foco visible del botón. Formulario vacío conserva
+  validación HTML. Borrador conservado al abrir Pagos y volver.
+- [x] Fallo de conexión simulado solo en el navegador: el POST de alta se
+  interceptó sin llegar al backend; botón bloqueado durante la espera, alerta
+  visible, botón rehabilitado y borrador intacto tras el fallo. No se afirma
+  haber probado un alta exitosa en este bloque.
+- [x] Miembro de la misma familia: no aparece la muestra de alta ni acciones
+  de administración de suscripciones. No se amplió la autorización existente.
+- [x] Landing idéntica: comparación SHA-256 de las dos PNG antes/después con
+  igual viewport, preferencia clara e indicador de desarrollo oculto solo en
+  el navegador. No se cambiaron `:root`, `body`, `layout.tsx` ni la landing.
+- [x] Frontend lint, `tsc --noEmit`, build y `git diff --check` aprobados.
+- [x] Sesiones cerradas, cookies del perfil temporal borradas, navegador y
+  perfiles cerrados/eliminados; script temporal eliminado. Sin credenciales
+  guardadas en archivos del proyecto.
+
+Límite visual: la muestra mantiene contraste con preferencia oscura; el fondo
+oscuro y el contraste deficiente de partes todavía no migradas siguen siendo
+visibles y se tratarán al migrar sus contenedores. No se presenta esta muestra
+como el rediseño terminado ni como la regresión integral del bloque 17.
+
+### Bloque 4 — Navegación y contexto (16 de noviembre de 2026)
+
+Implementado por `frontend-designer` con `frontend-design`, partiendo de la
+propuesta aprobada. Revisión de código por `reviewer` sin hallazgos nuevos en
+este bloque. [Capturas y comprobaciones](../diseno/fase-7/bloque-4/README.md).
+
+- [x] Nuevo `frontend/src/components/app-shell.tsx`: contenedor presentacional
+  con slots de navegación/contexto y props de título, descripción, usuario y
+  contenido. No incluye hooks, consultas, sesión ni estado de negocio.
+- [x] Dashboard: navegación lateral en escritorio y cuadrícula en móvil, vista
+  activa con `aria-pressed`, título de tarea, espacio/tipo/rol separado del
+  contenido. `Responsable` representa el rol owner existente.
+- [x] Notificaciones conserva `/notifications` a una activación. El filtro
+  inicial continúa en todos los espacios; no hereda el grupo del dashboard.
+- [x] Código solo dentro de Familia, accesible desde personal sin seleccionar
+  familia, desde owner y desde miembro. Dos activaciones desde Suscripciones:
+  Familia y «Tengo un código de invitación». Ambas cuentas abrieron `/invitations`
+  con campo vacío, sin secretos en URL ni capturas.
+- [x] Se conservan `changeView`, `changeSelectedGroup`, permisos, bloqueos,
+  claves y paneles montados con `hidden`. Borrador comprobado al ir a Pagos y
+  volver; cambio de grupo limpia el borrador conforme a la política anterior.
+- [x] Recarga observada al cambiar de vista; la vuelta a Suscripciones consulta
+  grupos y suscripciones. El contenedor nuevo no incorpora peticiones.
+- [x] Enlace directo `groupId`/`view` a Pagos familiar, contexto inválido con
+  retorno al personal y aviso, y atrás/adelante entre esos contextos comprobados.
+- [x] Capturas de dashboard y Familia owner/miembro a 1440/390 px; foco por Tab
+  en navegación, controles de navegación de al menos 44 px, ancho sin desborde
+  en los escenarios medidos y dashboard claro con preferencia oscura.
+- [x] Landing idéntica por SHA-256 de las PNG a 1440/390 px; estilos nuevos
+  delimitados por `.app-design`, sin modificar `:root`, `body` o layout raíz.
+- [x] Frontend lint, TypeScript, build y `git diff --check` aprobados.
+- [x] Sin escrituras de producto: solo login/refresh/logout y consultas.
+  Se levantó API Express temporal sin scheduler ni migraciones. Servidores
+  temporales cerrados; navegador, perfil y script temporal eliminados.
+
+Las páginas de Notificaciones e Invitaciones adoptarán el contenedor al llegar
+a sus bloques 13 y 12; sus rutas ya funcionan. Las listas y formularios del
+dashboard mantienen su composición hasta los bloques correspondientes.
+
+Observación preexistente: React avisa de la misma key en los paneles hermanos
+`FamilyGroupsPanel` e `InvitationsPanel` en Familia owner. Las expresiones ya
+están en HEAD anterior y este bloque las conserva. Registrar su corrección y
+comprobar la identidad/borradores al migrar Familia e Invitaciones (bloques
+10–12), antes de la regresión final. El recorrido visual de este bloque pasó;
+no se afirma que ese aviso previo esté resuelto.
+
+### Bloque 5 — Consulta de suscripciones (16 de noviembre de 2026)
+
+El propietario autorizó avanzar varios bloques hasta poder revisar un diseño
+más establecido. Se delimitó la entrega a los bloques 5 y 6 y se detiene antes
+de Pagos para revisar una primera vista completa. Implementación delegada a
+`frontend-designer` con `frontend-design`; evidencia y galería en
+[Suscripciones](../diseno/fase-7/bloques-5-6/README.md).
+
+- [x] Una lista principal en una superficie, con filas y separación clara de
+  servicio/proveedor/frecuencia, fecha, coste y estado escrito. Se elimina el
+  título duplicado; encabezados de columna en escritorio y etiquetas `dt` en
+  móvil. `<time>` conserva el valor DATE y costes siguen como string sin moneda
+  inventada. Sin alterar el orden de los datos devueltos por la API.
+- [x] Contexto, carga, vacío, error y reintento conservados; consulta de miembro
+  sin controles owner. Estados con el mismo vocabulario visual y sin ocultar
+  la causa del fallo o reemplazar datos de otro grupo.
+- [x] Checkpoint 5 inspeccionado en navegador y aprobado por el principal antes
+  de implementar el 6; lint, TypeScript y revisión de diff aprobados.
+
+### Bloque 6 — Alta y edición (16 de noviembre de 2026)
+
+- [x] Botón «Añadir suscripción» en la cabecera mediante slot opcional `actions`
+  de `AppShell`. Alta montada con `hidden`, controles y semántica conservados;
+  dos columnas en escritorio y una en móvil. Cancelar cierra sin enviar y
+  conserva el borrador en el mismo grupo. Abrir enfoca Nombre; cancelar devuelve
+  foco al botón. Navegación del mismo contexto conserva apertura y datos;
+  cambio de grupo invalida apertura y limpia borrador.
+- [x] Disclosures de administración por servicio exclusivos de owner. Cambiar
+  coste mantiene la capacidad real de edición: mismo endpoint, validación,
+  payload string y mensaje sobre pagos históricos. Eliminar y activar/desactivar
+  mantienen handlers, confirmación, permisos y bloqueos.
+- [x] Edición conserva borrador al colapsar/expandir y al cambiar de vista y
+  volver; tras recarga reabre la fila que sigue en edición. Error mantiene
+  borrador; cancelar/éxito devuelven foco al disclosure.
+- [x] Estados de alta, edición, activación y eliminación comprobados con
+  respuestas interceptadas solo en navegador, sin persistencia: bloqueo de envío
+  repetido mientras espera, error y éxito de POST/PATCH, cancelar confirmación
+  de DELETE sin petición, conflicto 409 y respuesta 204. La consulta posterior
+  restaura las filas reales y sus importes originales.
+- [x] Se encontró retorno de foco inconsistente tras éxito rápido del alta.
+  Corregido con intención de foco en ref y efecto tras commit con botón
+  habilitado; repetición de error rápido y éxito rápido pasó. La intención se
+  cancela si cambia contexto, vista, sesión o permiso.
+- [x] Owner y miembro reales: lista, alta abierta, editor y consulta en capturas
+  1440/390 px. Medidas de consulta adicionales a 360/768 sin desborde. Tab al
+  botón de alta con foco visible. Preferencia oscura mantiene ámbito claro.
+  Landing idéntica por SHA-256 a las dos referencias anteriores.
+- [x] Lint, TypeScript y build final aprobados; `reviewer` sin hallazgos nuevos,
+  incluido el parche de foco; `git diff --check` aprobado. Sin dependencias,
+  cambios backend, contratos ni escrituras de producto.
+- [x] Sesiones cerradas, interceptores retirados, navegador/perfil y script
+  temporal eliminados. Frontend y API de revisión permanecen disponibles para
+  la revisión del propietario; API sin scheduler ni migraciones.
+
+Las simulaciones verifican la interfaz ante respuestas del contrato; no se
+presentan como nuevas pruebas de persistencia. La revisión integral de teclado,
+zoom y todos los recorridos continúa en los bloques 16 y 17. La incidencia
+previa de claves de Familia sigue registrada para el bloque 10. Se espera la
+revisión visual de esta primera vista antes de extender el diseño a Pagos.
+
+### Bloque 7 — Pagos personales (16 de noviembre de 2026)
+
+Implementado por `frontend-designer` con la skill `frontend-design`. Evidencia
+visual y comprobaciones: [galería de los bloques 7–9](../diseno/fase-7/bloques-7-9/README.md).
+
+- [x] Pendientes primero e historial después; filas muestran servicio, importe
+  previsto/registrado, fecha y estado, evitando repetir encabezados.
+- [x] Se conservan consultas, validación, importe decimal como string, límites
+  de lista, estados de carga/error, abortos, bloqueo de doble envío, cancelación
+  de confirmación y los payloads existentes para confirmar/omitir.
+- [x] Un importe inválido no envía; una respuesta de error mantiene el borrador;
+  respuestas simuladas confirman el estado y permiten mostrar importes distintos
+  y conflictos. El borrador sobrevive al cambio de vista.
+- [x] Foco al abrir la confirmación y retorno al botón al cancelar, después de
+  actualizar el DOM; Tab muestra foco visible. No se escribió ningún pago.
+- [x] Datos reales de ambas cuentas en capturas 1440/390 px; fixtures de
+  navegador para validación, error, conflicto y éxito. Landing idéntica a las
+  referencias por SHA-256. Lint, TypeScript, build y revisión de diff aprobados.
+
+### Bloque 8 — Mis partes familiares (16 de noviembre de 2026)
+
+- [x] La parte propia aparece en una sección diferenciada del importe y progreso
+  de grupo. El coste esperado, lo registrado, la fecha y el estado se presentan
+  como datos separados; no se recalculan importes en la interfaz.
+- [x] Se conserva el tope de miembro en su parte y la excepción existente para
+  que owner registre un importe mayor en su parte. Pruebas de navegador con
+  respuestas interceptadas cubrieron exceso, error, doble envío, éxito y
+  persistencia del borrador entre vistas; ninguna petición de escritura llegó
+  al backend.
+- [x] Contexto real: parte esperada 5, importe propio registrado 4.50, grupo
+  esperado 10 y registrado 9.50. Capturas y fixtures separados en la galería.
+- [x] Sin cambios en servicios, permisos, reglas de dominio, API ni base de
+  datos. La revisión del `reviewer` no encontró regresiones nuevas.
+
+### Bloque 9 — Pago del grupo y desglose (16–17 de noviembre de 2026)
+
+- [x] El progreso del pago del grupo y el desglose expandible identifican
+  participantes, cuota/porcentaje previsto, importe registrado y estado.
+- [x] Pagos sin una parte propia se muestran en una sección aparte. Se conservan
+  la clasificación protegida por carga de partes, la lista de IDs propios, los
+  permisos owner para omitir el pago completo y la salvaguarda si falla el
+  historial de partes. El desglose y el reintento mantienen sus estados de
+  carga/error.
+- [x] Lecturas reales y respuestas simuladas cubrieron desglose, error/reintento,
+  clasificación segura, confirmación, omisión, conflicto y éxito. No se hicieron
+  escrituras de producto ni cambios de datos.
+- [x] Capturas 1440/390 px de owner/miembro, varias anchas de viewport y
+  preferencia oscura; landing intacta. Lint, TypeScript, build y `git diff
+  --check` aprobados; revisión `reviewer` sin hallazgos nuevos.
+- [x] Sesiones cerradas, interceptores retirados, cookies borradas y navegador,
+  perfil aislado y script temporal eliminados. API de revisión sin scheduler ni
+  migraciones; servicios frontend/API disponibles para inspección visual.
+
+La galería distingue datos reales de fixtures simuladas. Las capturas no
+demuestran persistencia para los estados simulados. Después de este checkpoint,
+el trabajo continuó con el bloque 10, documentado a continuación. La colisión
+preexistente de keys React entre los paneles hermanos se resolvió allí al dar
+una key propia a cada panel.
+
+### Bloque 10 — Familia y miembros (17 de noviembre de 2026)
+
+Implementado según la propuesta aprobada por el propietario, con `frontend-designer`
+y la skill `frontend-design`. El `reviewer` no encontró hallazgos en este bloque.
+La revisión visual del propietario sigue pendiente; no se registran capturas nuevas.
+
+- [x] En Familia seleccionada, la lista continua de miembros aparece antes del
+  panel administrativo. Cada fila muestra inicial violeta, nombre, fecha y rol;
+  en móvil los datos se apilan sin columnas estrechas.
+- [x] En Personal, la vista explica cómo crear una familia. La acción de crear
+  está en la cabecera general de Familia y abre el formulario dentro de la vista;
+  conserva el borrador al cerrar y lo limpia al cambiar de grupo o crearla.
+- [x] «Administrar familia» está integrada con el nombre y rol del grupo actual;
+  la lista de miembros conserva su jerarquía separada y queda antes del detalle.
+- [x] El enlace de código de invitación continúa únicamente en Familia. El
+  contenido y los handlers de administración e invitaciones se conservaron.
+- [x] Las keys de `FamilyGroupsPanel` e `InvitationsPanel` ahora tienen prefijos
+  distintos, eliminando la colisión preexistente entre paneles hermanos.
+- [x] ESLint, `tsc --noEmit`, `git diff --check` y la ruta local del dashboard
+  (HTTP 200) aprobados. Sin cambios de API, backend ni datos de producto.
+- [ ] Revisión visual del propietario en escritorio y móvil.
+
+### Bloque 11 — Administración familiar (17 de noviembre de 2026)
+
+- [x] «Administrar familia» se integra con la tarjeta del grupo actual. Los
+  controles de renombrado y transferencia quedan agrupados; retirar un miembro
+  sigue junto a su fila, y salir conserva su zona de acción propia.
+- [x] Confirmaciones, estados ocupados, permisos, llamadas y recuperación de
+  contexto siguen en sus handlers existentes. Cambio de grupo, creación de
+  familia y salida cierran el formulario de creación según el contexto.
+- [x] Revisión estática de accesibilidad y reglas de rol. Se corrigió el
+  `aria-controls` para que su destino permanezca montado y oculto al cerrar.
+- [x] ESLint, TypeScript y `git diff --check` aprobados; no se cambiaron APIs,
+  backend, persistencia ni reglas de producto. Revisión visual del propietario
+  pendiente en escritorio y móvil.
+
+### Bloque 12 — Invitaciones completas (17 de noviembre de 2026)
+
+Implementación visual delegada a `frontend-designer` con la skill
+`frontend-design`; revisión estática de `reviewer` sin hallazgos.
+
+- [x] Owner: creación de invitaciones, aviso de código de un solo uso, acciones
+  para copiar u ocultar y una lista de invitaciones con estados y vencimientos.
+- [x] Receptor: formulario para ingresar el código, comprobación de sesión,
+  revisión de familia/destinatario/vencimiento, aceptación o rechazo y resultado.
+- [x] Se mantienen handlers, permisos, payloads y estados de error/carga; el
+  código sigue solo en memoria y no se expone en URL, almacenamiento ni logs.
+- [x] ESLint, `tsc --noEmit` y `git diff --check` aprobados. Sin cambios de API,
+  backend ni persistencia. No hubo inspección de navegador; la revisión visual
+  del propietario queda pendiente en escritorio y móvil.
 
 ## 1. Resultado deseado y límites
 
@@ -167,9 +440,9 @@ visual a lo disponible; cualquier ampliación de producto requiere otro alcance.
 Reglas de composición:
 
 - Navegación estable con estado activo. En dashboard: Suscripciones, Pagos y
-  Familia; enlace independiente a Notificaciones y acceso directo «Tengo un
-  código de invitación». Este último lleva a `/invitations` y no depende de
-  seleccionar una familia ni de ser owner.
+  Familia; enlace independiente a Notificaciones. El acceso «Tengo un código de
+  invitación» queda únicamente dentro de Familia, lleva a `/invitations` y no
+  depende de seleccionar una familia ni de ser owner.
 - El selector de espacio es contexto de trabajo, separado de la navegación.
   Mostrar nombre, tipo y rol legible, sin exponer identificadores técnicos.
 - Notificaciones mantiene su filtro propio «Todos los espacios» y el grupo
@@ -187,7 +460,7 @@ Reglas de composición:
 - No inventar totales de gasto a partir de listas truncadas o páginas. Conservar
   límites visibles, filtros y paginación; no añadir sumas a esta fase.
 
-## 3. Dirección visual propuesta, pendiente de aprobación
+## 3. Dirección visual aceptada, con ajustes del 16 de noviembre
 
 Una agenda de servicios recurrentes: nombres, fechas y cantidades fáciles de
 recorrer; ritmo de filas y espacio en blanco, con un acento de color reconocible.
@@ -202,7 +475,7 @@ Paleta inicial para los mockups:
 | Superficie | `#FFFFFF` | Contenido y formularios |
 | Texto | `#18283B` | Títulos y lectura |
 | Secundario | `#536276` | Información auxiliar |
-| Acento | `#006B75` | Acción principal, selección y foco |
+| Acento | `#CF7FFF` | Marca y fondos de acción con texto oscuro; violeta oscuro derivado para texto/foco |
 | Separador | `#D5DEE7` | Estructura entre grupos y filas |
 
 Añadir colores semánticos para éxito, advertencia y peligro con contraste
@@ -228,13 +501,13 @@ Escritorio
 │ Pagos             │ Suscripciones       [Añadir suscripción] │
 │ Familia           │ Servicio      Próxima fecha      Coste   │
 │ Notificaciones    │ ...                                      │
-│ Tengo un código   │ [detalle o formulario solo al solicitar] │
+│                   │ [detalle o formulario solo al solicitar] │
 └───────────────────┴──────────────────────────────────────────┘
 Móvil
 ┌────────────────────────────────┐
 │ Nombre aplicación              │
 │ Suscripciones · Pagos · Familia │
-│ Notificaciones · Tengo código  │
+│ Notificaciones                 │
 │ Espacio y rol                  │
 │ Suscripciones         [Añadir] │
 │ Servicio, fecha, coste, acción  │
@@ -280,7 +553,9 @@ necesitan una propuesta visual actualizada antes de aplicarse.
 
 ## 5. Bloques y puntos de parada
 
-Bloque 1 completado con limitación visual registrada; las demás filas pendientes.
+Bloques 1 a 9 implementados y comprobados según los registros anteriores.
+Suscripciones ya fue revisada; Pagos personal/familiar queda en revisión visual
+del propietario. Filas 10 a 18 pendientes.
 Antes: explicar alcance, archivos y concepto.
 Después: mostrar resultado, evidencia y límite, actualizar solo su checklist y
 detenerse. Si una fila exige cambios grandes de lógica, dividirla antes de editar.
@@ -290,7 +565,7 @@ detenerse. Si una fila exige cambios grandes de lógica, dividirla antes de edit
 | 1. Inventario y base | Revisar rutas/paneles, capturas y mapa de acciones; registrar en este plan | Cada acción vigente tiene destino y permiso; capturas reales de 390 y 1440 px o limitación documentada; frontend lint/TypeScript/build como base |
 | 2. Propuesta visual | `frontend-designer`: mockups de Suscripciones, Pagos familiar y Familia, patrón de notificación, móvil, vacío y formulario; artefactos enlazados al plan | 6 colores base, tipografía, estados y jerarquía definidos; propietario aprueba propuesta concreta antes de código |
 | 3. Fundamentos | Tokens delimitados en `globals.css` y pocos controles en `src/components/ui/` si hay reutilización real | Botón, campo, estado y foco coherentes en una muestra de la vista; landing idéntica; no nuevas dependencias |
-| 4. Navegación y contexto | Contenedor presentacional compartido; cabecera del dashboard y accesos a Notificaciones/código | Destino activo inequívoco; introducir código y llegar a Notificaciones en una activación desde dashboard; grupo/rol siempre identificables; enlaces antiguos y borradores conservados |
+| 4. Navegación y contexto | Contenedor presentacional compartido; cabecera del dashboard y enlace a Notificaciones; código dentro de Familia | Destino activo inequívoco; Notificaciones en una activación y código en dos (Familia y entrada) desde dashboard; grupo/rol identificables; enlaces antiguos y borradores conservados |
 | 5. Consulta de suscripciones | Lista y jerarquía de datos en `dashboard/page.tsx` | Servicio, coste, frecuencia, fecha y estado distinguibles; una sola lista principal; consulta de miembro sin controles owner |
 | 6. Alta y edición | Formulario bajo demanda y acciones de fila en `dashboard/page.tsx` | Abrir, cancelar, validar, guardar y error conservan comportamiento; borrador sobrevive al cambio de vista en el mismo contexto; un envío por acción |
 | 7. Pagos personales | Presentación de `payments-panel.tsx` | Pendientes antes de historial; confirmar/omitir igual que antes; estado e importe claros sin columnas ilegibles en móvil |
@@ -388,11 +663,11 @@ servidores, perfiles de navegador ni scripts temporales del recorrido.
 
 ## 8. Checklist final — pendiente
 
-- [x] Inventario de código y comprobaciones base registrados; capturas previas pendientes para el bloque 2.
-- [ ] Propuesta visual desktop/móvil aprobada por el propietario.
-- [ ] Navegación y contexto de espacio coherentes; introducir código fácil de encontrar.
-- [ ] Suscripciones consultables sin formularios que compitan con la lista.
-- [ ] Pagos personales y partes familiares claramente diferenciados.
+- [x] Inventario de código, comprobaciones base y capturas reales previas registrados.
+- [x] Propuesta visual desktop/móvil aceptada por el propietario con ajustes de color y entrada de código en Familia.
+- [x] Navegación y contexto de espacio en dashboard coherentes; introducir código fácil de encontrar. Integración visual de las otras rutas pendiente de sus bloques.
+- [x] Suscripciones consultables sin formularios que compitan con la lista; revisada por el propietario.
+- [x] Pagos personales y partes familiares claramente diferenciados; pendiente aceptación visual del propietario.
 - [ ] Miembros, administración e invitaciones organizados según tarea y permiso.
 - [ ] Notificaciones y login integrados en el mismo lenguaje visual.
 - [ ] Sesión, borradores, recargas, enlaces y permisos conservados.

@@ -184,35 +184,41 @@ export default function InvitationRecipientPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
-      <section className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
-        <p className="mt-8 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Gestor de suscripciones</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Invitación a una familia</h1>
-        <p className="mt-3 text-slate-600">Inicia sesión con el correo que recibió la invitación y pega el código que te compartió el owner.</p>
+    <main className="app-design invitation-page">
+      <section aria-labelledby="invitation-page-heading" className="invitation-recipient">
+        <header className="invitation-recipient-heading">
+          <p>Gestor de suscripciones</p>
+          <h1 id="invitation-page-heading">Invitación a una familia</h1>
+          <p>Inicia sesión con el correo que recibió la invitación. Después podrás revisar a qué familia te unirías.</p>
+        </header>
 
-        {authState === 'loading' && <p className="mt-6 text-sm text-slate-600" role="status">Comprobando sesión…</p>}
+        {authState === 'loading' && <p className="invitation-recipient-state" role="status">Comprobando sesión…</p>}
         {authState === 'unauthenticated' && (
-          <div className="mt-6 rounded-xl bg-amber-50 px-4 py-4 text-sm text-amber-950">
+          <div className="invitation-recipient-callout invitation-recipient-callout-warning">
             <p>Necesitas iniciar sesión para comprobar el código. Por seguridad, no lo guardamos al ir al login; tendrás que pegarlo otra vez después.</p>
-            <Link className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-violet-700 px-4 font-medium text-white hover:bg-violet-800" href="/login" onClick={() => { setCode(''); clearInvitation(); }}>
+            <Link className="ui-button invitation-recipient-link" href="/login" onClick={() => { setCode(''); clearInvitation(); }}>
               Ir a iniciar sesión
             </Link>
           </div>
         )}
         {authState === 'error' && (
-          <div className="mt-6 rounded-xl bg-red-50 px-4 py-4">
-            <p className="text-sm text-red-700" role="alert">{authError}</p>
-            <button className="mt-3 min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={() => window.location.reload()} type="button">Reintentar</button>
+          <div className="invitation-recipient-callout invitation-recipient-callout-error">
+            <p className="ui-feedback ui-feedback-error" role="alert">{authError}</p>
+            <button className="ui-button ui-button-secondary" onClick={() => window.location.reload()} type="button">Reintentar</button>
           </div>
         )}
 
         {authState === 'ready' && !finished && (
-          <form className="mt-6 space-y-4" onSubmit={handleCodeSubmit}>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="invitation-code">Código de invitación</label>
+          <form className="invitation-recipient-form" onSubmit={handleCodeSubmit}>
+            <div className="invitation-recipient-form-heading">
+              <h2>Introduce tu código</h2>
+              <p>Pégalo completo. Lo comprobaremos antes de mostrarte los detalles.</p>
+            </div>
+            <label className="app-design-label" htmlFor="invitation-code">Código de invitación</label>
             <textarea
               autoComplete="off"
               autoCapitalize="off"
-              className="min-h-28 w-full resize-y rounded-xl border border-slate-300 px-3 py-3 font-mono text-sm text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
+              className="ui-field invitation-code-field"
               disabled={busyAction !== null || invitation !== null}
               id="invitation-code"
               onChange={(event) => setCode(event.target.value)}
@@ -220,48 +226,51 @@ export default function InvitationRecipientPage() {
               spellCheck={false}
               value={code}
             />
-            <p className="text-xs text-slate-500">El código solo se usa en esta sesión. No lo incluyas en enlaces ni lo guardes en un equipo compartido.</p>
-            <div className="flex flex-wrap gap-2">
-              <button className="min-h-11 rounded-lg bg-violet-700 px-4 font-medium text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={busyAction !== null || !code.trim() || invitation !== null} type="submit">
+            <p className="invitation-recipient-hint">El código solo se usa en esta sesión. No lo incluyas en enlaces ni lo guardes en un equipo compartido.</p>
+            <div className="invitation-recipient-actions">
+              <button className="ui-button" disabled={busyAction !== null || !code.trim() || invitation !== null} type="submit">
                 {busyAction === 'preview' ? 'Comprobando…' : 'Comprobar invitación'}
               </button>
               {credentials && !invitation && busyAction === null && (
-                <button className="min-h-11 rounded-lg border border-slate-300 px-4 font-medium text-slate-700" onClick={() => void previewInvitation(credentials.invitationId, credentials.token)} type="button">Reintentar comprobación</button>
+                <button className="ui-button ui-button-secondary" onClick={() => void previewInvitation(credentials.invitationId, credentials.token)} type="button">Reintentar comprobación</button>
               )}
             </div>
           </form>
         )}
 
-        {error && <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</p>}
-        {notice && <p className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900" role="status">{notice}</p>}
+        {error && <p className="ui-feedback ui-feedback-error invitation-recipient-message" role="alert">{error}</p>}
+        {notice && <p className="ui-feedback invitation-recipient-notice" role="status">{notice}</p>}
 
         {invitation && authState === 'ready' && (
-          <section aria-labelledby="invitation-preview-heading" className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <h2 className="text-xl font-semibold text-slate-950" id="invitation-preview-heading">Revisa la invitación</h2>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <div><dt className="text-slate-500">Familia</dt><dd className="mt-1 font-medium text-slate-900">{invitation.groupName}</dd></div>
-              <div><dt className="text-slate-500">Invitada a</dt><dd className="mt-1 break-words font-medium text-slate-900">{invitation.email}</dd></div>
-              <div><dt className="text-slate-500">Invitó</dt><dd className="mt-1 font-medium text-slate-900">{invitation.invitedByName}</dd></div>
-              <div><dt className="text-slate-500">Vence</dt><dd className="mt-1 font-medium text-slate-900">{new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(invitation.expiresAt))}</dd></div>
+          <section aria-labelledby="invitation-preview-heading" className="invitation-preview">
+            <div className="invitation-preview-heading">
+              <h2 id="invitation-preview-heading">Revisa antes de aceptar</h2>
+              <p>Comprueba que reconoces la familia y el correo invitado.</p>
+            </div>
+            <dl className="invitation-preview-facts">
+              <div><dt>Familia</dt><dd>{invitation.groupName}</dd></div>
+              <div><dt>Invitada a</dt><dd>{invitation.email}</dd></div>
+              <div><dt>Invitó</dt><dd>{invitation.invitedByName}</dd></div>
+              <div><dt>Vence</dt><dd><time dateTime={invitation.expiresAt}>{new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(invitation.expiresAt))}</time></dd></div>
             </dl>
-            <p className="mt-4 text-sm text-slate-600">Al aceptar, te unirás como miembro activo. El reparto de pagos anteriores no se modifica.</p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button className="min-h-11 rounded-lg bg-violet-700 px-4 font-medium text-white hover:bg-violet-800 disabled:opacity-60" disabled={busyAction !== null} onClick={() => void resolveInvitation('accept')} type="button">
+            <p className="invitation-preview-note">Al aceptar, te unirás como miembro activo. El reparto de pagos anteriores no se modifica.</p>
+            <div className="invitation-preview-actions">
+              <button className="ui-button" disabled={busyAction !== null} onClick={() => void resolveInvitation('accept')} type="button">
                 {busyAction === 'accept' ? 'Aceptando…' : 'Aceptar invitación'}
               </button>
-              <button className="min-h-11 rounded-lg border border-slate-300 px-4 font-medium text-slate-700 hover:bg-white disabled:opacity-60" disabled={busyAction !== null} onClick={() => void resolveInvitation('decline')} type="button">
+              <button className="ui-button ui-button-secondary" disabled={busyAction !== null} onClick={() => void resolveInvitation('decline')} type="button">
                 {busyAction === 'decline' ? 'Rechazando…' : 'Rechazar'}
               </button>
-              <button className="min-h-11 rounded-lg px-3 text-sm font-medium text-slate-600 underline" disabled={busyAction !== null} onClick={clearInvitation} type="button">Usar otro código</button>
+              <button className="ui-button ui-button-text" disabled={busyAction !== null} onClick={clearInvitation} type="button">Usar otro código</button>
             </div>
           </section>
         )}
 
         {finished && (
-          <div className="mt-6 rounded-2xl bg-emerald-50 p-5">
-            <p className="font-medium text-emerald-950">{finished === 'accepted' ? 'Invitación aceptada' : 'Invitación rechazada'}</p>
-            {finished === 'accepted' && <p className="mt-1 text-sm text-emerald-900">Abre el dashboard para elegir la familia. Tu grupo personal sigue disponible.</p>}
-            <Link className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-violet-700 px-4 font-medium text-white hover:bg-violet-800" href="/dashboard">{finished === 'accepted' ? 'Ir al dashboard' : 'Volver al dashboard'}</Link>
+          <div className="invitation-result">
+            <p className="invitation-result-title">{finished === 'accepted' ? 'Invitación aceptada' : 'Invitación rechazada'}</p>
+            {finished === 'accepted' && <p>Abre el dashboard para elegir la familia. Tu grupo personal sigue disponible.</p>}
+            <Link className="ui-button invitation-recipient-link" href="/dashboard">{finished === 'accepted' ? 'Ir al dashboard' : 'Volver al dashboard'}</Link>
           </div>
         )}
       </section>

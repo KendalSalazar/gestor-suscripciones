@@ -34,20 +34,33 @@ type MembersResponse = { members: GroupMember[] };
 
 const initialMembers: MembersState = { groupId: null, ownerId: null, members: [], loading: true, error: '', refreshVersion: -1 };
 
+function memberInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = Array.from(parts[0] ?? '?');
+  const last = Array.from(parts[parts.length - 1] ?? '?');
+  const initials = parts.length > 1 ? `${first[0]}${last[0]}` : first.slice(0, 2).join('');
+  return initials.toLocaleUpperCase('es-CR');
+}
+
 export default function FamilyGroupsPanel({
+  createFamilyOpen,
   group,
   groupsReady,
   onGroupUpdated,
   onLeftGroup,
+  onCreateFamilyOpenChange,
   onRefreshGroups,
   onSessionExpired,
   onWorkingChange,
   refreshVersion = 0,
 }: {
+  createFamilyOpen: boolean;
   group: Group | null;
   groupsReady: boolean;
   onGroupUpdated: (group: Group, selectGroup?: boolean) => void;
   onLeftGroup: () => void;
+  onCreateFamilyOpenChange: (open: boolean) => void;
   onRefreshGroups: () => void;
   onSessionExpired: () => void;
   onWorkingChange: (working: boolean) => void;
@@ -138,6 +151,7 @@ export default function FamilyGroupsPanel({
       });
       if (!result) throw new Error('El servidor no devolvió la familia creada.');
       setNewGroupName('');
+      onCreateFamilyOpenChange(false);
       setNotice('Familia creada. Ya está seleccionada en el dashboard.');
       onGroupUpdated(result.group, true);
     } catch (error) {
@@ -267,126 +281,141 @@ export default function FamilyGroupsPanel({
 
   const isOwner = group?.role === 'owner' && groupsReady;
   const isMember = group?.role === 'member' && groupsReady;
+  const createFamilyForm = (
+    <form className="family-create-form" onSubmit={createFamily}>
+      <label className="app-design-label" htmlFor="new-family-name">Nombre de la familia</label>
+      <input
+        className="ui-field"
+        disabled={workingAction !== null}
+        id="new-family-name"
+        maxLength={255}
+        onChange={(event) => setNewGroupName(event.target.value)}
+        required
+        value={newGroupName}
+      />
+      <button className="ui-button" disabled={workingAction !== null || !newGroupName.trim()} type="submit">
+        {workingAction === 'create' ? 'Creando…' : 'Crear familia'}
+      </button>
+    </form>
+  );
 
   return (
-    <section aria-labelledby="family-groups-heading" className="mt-10 border-t border-slate-200 pt-8">
-      <h2 className="text-2xl font-semibold text-slate-950" id="family-groups-heading">Familias y miembros</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-        Puedes crear una familia. En una familia existente, el owner administra el nombre y los miembros; cualquier miembro puede consultar el listado.
-      </p>
-
-      {notice && <p className="mt-4 rounded-xl bg-violet-50 px-4 py-3 text-sm text-violet-900" role="status">{notice}</p>}
-      {actionError && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{actionError}</p>}
-      {!groupsReady && (
-        <p className="mt-4 text-sm text-slate-600" role="status">Actualizando el grupo y sus permisos…</p>
-      )}
-
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="text-xl font-semibold text-slate-950">Crear familia</h3>
-          <p className="mt-2 text-sm text-slate-600">Crearla no cambia ni elimina tu grupo personal.</p>
-          <form className="mt-4 space-y-3" onSubmit={createFamily}>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="new-family-name">Nombre</label>
-            <input
-              className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
-              disabled={workingAction !== null}
-              id="new-family-name"
-              maxLength={255}
-              onChange={(event) => setNewGroupName(event.target.value)}
-              required
-              value={newGroupName}
-            />
-            <button
-              className="min-h-10 rounded-lg bg-violet-700 px-4 text-sm font-medium text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={workingAction !== null || !newGroupName.trim()}
-              type="submit"
-            >
-              {workingAction === 'create' ? 'Creando…' : 'Crear familia'}
-            </button>
-          </form>
-        </section>
-
-        {group ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <h3 className="text-xl font-semibold text-slate-950">{group.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">{isOwner ? 'Owner' : isMember ? 'Miembro' : 'Permisos en actualización'}</p>
-
-            {isOwner && (
-              <>
-                <form className="mt-5 space-y-3 border-t border-slate-100 pt-5" onSubmit={renameFamily}>
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="family-name">Cambiar nombre</label>
-                  <input
-                    className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
-                    disabled={workingAction !== null}
-                    id="family-name"
-                    maxLength={255}
-                    onChange={(event) => setGroupNameDraft(event.target.value)}
-                    required
-                    value={groupName}
-                  />
-                  <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 disabled:opacity-60" disabled={workingAction !== null || !groupName.trim() || groupName.trim() === group.name} type="submit">
-                    {workingAction === 'rename' ? 'Guardando…' : 'Guardar nombre'}
-                  </button>
-                </form>
-
-                <form className="mt-5 space-y-3 border-t border-slate-100 pt-5" onSubmit={transferOwnership}>
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="new-owner">Transferir propiedad</label>
-                  <select
-                    className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-950 outline-none focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
-                    disabled={membersLoading || members.error !== '' || workingAction !== null}
-                    id="new-owner"
-                    onChange={(event) => setNewOwnerId(event.target.value)}
-                    value={newOwnerId}
-                  >
-                    <option value="">Selecciona un miembro activo</option>
-                    {members.members.filter((member) => member.role === 'member').map((member) => (
-                      <option key={member.userId} value={member.userId}>{member.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-500">Seguirás como miembro y conservarás tus partes e historial.</p>
-                  <button className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 disabled:opacity-60" disabled={!newOwnerId || workingAction !== null || membersLoading || members.error !== ''} type="submit">
-                    {workingAction === 'transfer' ? 'Transfiriendo…' : 'Transferir ownership'}
-                  </button>
-                </form>
-              </>
-            )}
-
-            {isMember && (
-              <div className="mt-5 border-t border-slate-100 pt-5">
-                <p className="text-sm text-slate-600">Si tienes una parte pendiente de un pago pendiente, primero debes resolverla para poder salir.</p>
-                <button
-                  className="mt-3 min-h-10 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
-                  disabled={workingAction !== null}
-                  onClick={() => void leaveFamily()}
-                  type="button"
-                >
-                  {workingAction === 'leave' ? 'Saliendo…' : 'Salir de la familia'}
-                </button>
-              </div>
-            )}
-
-            {group.role === 'owner' && (
-              <p className="mt-5 border-t border-slate-100 pt-5 text-sm text-slate-600">
-                Para salir, primero transfiere la propiedad a otro miembro activo.
-              </p>
-            )}
-          </section>
-        ) : (
-          <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-600 sm:p-6">
-            Selecciona una familia en el dashboard para consultar sus miembros y administrarla.
-          </section>
-        )}
+    <section aria-labelledby="family-groups-heading" className="family-groups-panel">
+      <div className="family-groups-header">
+        <div>
+          <h2 className="family-groups-heading" id="family-groups-heading">
+            {group ? 'Miembros de la familia' : 'Crear una familia'}
+          </h2>
+          <p className="family-groups-intro">
+            {group
+              ? `Personas activas de ${group.name} y su rol en el grupo.`
+              : 'Crea un espacio para compartir suscripciones. Tu grupo Personal seguirá igual.'}
+          </p>
+        </div>
       </div>
 
+      <section
+        aria-labelledby="family-create-heading"
+        className="family-create-panel"
+        hidden={!createFamilyOpen}
+        id="family-create-panel"
+      >
+        <div className="family-create-panel-heading">
+          <h3 id="family-create-heading">{group ? 'Crear otra familia' : 'Crear una familia'}</h3>
+          <p>{group ? 'Esta familia seguirá igual. La nueva se seleccionará al crearla.' : 'Tu espacio Personal seguirá igual. La nueva familia se seleccionará al crearla.'}</p>
+        </div>
+        {createFamilyForm}
+      </section>
+
+      {notice && <p className="ui-feedback family-notice" role="status">{notice}</p>}
+      {actionError && <p className="ui-feedback ui-feedback-error family-action-error" role="alert">{actionError}</p>}
+      {!groupsReady && (
+        <p className="family-member-state" role="status">Actualizando el grupo y sus permisos…</p>
+      )}
+
       {group && (
-        <section aria-labelledby="family-members-heading" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <section className="family-current-group" aria-label="Familia actual">
+          <div className="family-current-group-copy">
+            <span>Familia actual</span>
+            <h3>{group.name}</h3>
+            <p>{isOwner ? 'Owner' : isMember ? 'Miembro' : 'Permisos en actualización'}</p>
+          </div>
+          <details className="family-admin-disclosure">
+            <summary>Administrar familia</summary>
+            <div className="family-admin-disclosure-body">
+              <div className="family-admin-controls">
+                {isOwner && (
+                  <>
+                    <form className="family-admin-form" onSubmit={renameFamily}>
+                      <label className="app-design-label" htmlFor="family-name">Cambiar nombre</label>
+                      <input
+                        className="ui-field"
+                        disabled={workingAction !== null}
+                        id="family-name"
+                        maxLength={255}
+                        onChange={(event) => setGroupNameDraft(event.target.value)}
+                        required
+                        value={groupName}
+                      />
+                      <button className="ui-button ui-button-secondary" disabled={workingAction !== null || !groupName.trim() || groupName.trim() === group.name} type="submit">
+                        {workingAction === 'rename' ? 'Guardando…' : 'Guardar nombre'}
+                      </button>
+                    </form>
+
+                    <form className="family-admin-form" onSubmit={transferOwnership}>
+                      <label className="app-design-label" htmlFor="new-owner">Transferir propiedad</label>
+                      <select
+                        className="ui-field"
+                        disabled={membersLoading || members.error !== '' || workingAction !== null}
+                        id="new-owner"
+                        onChange={(event) => setNewOwnerId(event.target.value)}
+                        value={newOwnerId}
+                      >
+                        <option value="">Selecciona un miembro activo</option>
+                        {members.members.filter((member) => member.role === 'member').map((member) => (
+                          <option key={member.userId} value={member.userId}>{member.name}</option>
+                        ))}
+                      </select>
+                      <p>Seguirás como miembro y conservarás tus partes e historial.</p>
+                      <button className="ui-button ui-button-secondary" disabled={!newOwnerId || workingAction !== null || membersLoading || members.error !== ''} type="submit">
+                        {workingAction === 'transfer' ? 'Transfiriendo…' : 'Transferir ownership'}
+                      </button>
+                    </form>
+                  </>
+                )}
+
+                {isMember && (
+                  <div className="family-admin-form">
+                    <p>Si tienes una parte pendiente de un pago pendiente, primero debes resolverla para poder salir.</p>
+                    <button
+                      className="ui-button ui-button-danger"
+                      disabled={workingAction !== null}
+                      onClick={() => void leaveFamily()}
+                      type="button"
+                    >
+                      {workingAction === 'leave' ? 'Saliendo…' : 'Salir de la familia'}
+                    </button>
+                  </div>
+                )}
+
+                {group.role === 'owner' && (
+                  <p className="family-admin-note">Para salir, primero transfiere la propiedad a otro miembro activo.</p>
+                )}
+              </div>
+            </div>
+          </details>
+        </section>
+      )}
+
+      {group && (
+        <section aria-labelledby="family-members-heading" className="family-members-panel">
+          <div className="family-members-heading">
             <div>
-              <h3 className="text-xl font-semibold text-slate-950" id="family-members-heading">Miembros activos</h3>
-              <p className="mt-1 text-sm text-slate-500">Los correos y otros datos privados no se muestran.</p>
+              <h3 id="family-members-heading">Miembros activos</h3>
+              <p>Los correos y otros datos privados no se muestran.</p>
             </div>
             <button
-              className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className="ui-button ui-button-secondary"
               disabled={membersLoading || workingAction !== null || !groupsReady}
               onClick={reloadMembers}
               type="button"
@@ -395,27 +424,33 @@ export default function FamilyGroupsPanel({
             </button>
           </div>
           {membersLoading || !groupsReady ? (
-            <p className="mt-5 text-sm text-slate-600" role="status">Cargando miembros…</p>
+            <p className="family-member-state" role="status">Cargando miembros…</p>
           ) : members.error ? (
-            <div className="mt-5 rounded-xl bg-red-50 px-4 py-3">
-              <p className="text-sm text-red-700" role="alert">{members.error}</p>
-              <button className="mt-3 min-h-9 rounded-lg border border-red-200 px-3 text-sm font-medium text-red-800" onClick={reloadMembers} type="button">
+            <div className="family-member-error">
+              <p className="ui-feedback ui-feedback-error" role="alert">{members.error}</p>
+              <button className="ui-button ui-button-secondary" onClick={reloadMembers} type="button">
                 Reintentar miembros
               </button>
             </div>
           ) : members.members.length === 0 ? (
-            <p className="mt-5 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">No hay miembros activos en esta familia.</p>
+            <p className="family-member-state">No hay miembros activos en esta familia.</p>
           ) : (
-            <ul className="mt-5 divide-y divide-slate-100">
+            <ul className="family-member-list">
               {members.members.map((member) => (
-                <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between" key={member.userId}>
-                  <div>
-                    <p className="font-medium text-slate-900">{member.name}</p>
-                    <p className="text-sm text-slate-600">{member.role === 'owner' ? 'Owner' : 'Miembro'} · Se unió {new Date(member.joinedAt).toLocaleDateString('es-CR')}</p>
+                <li className={`family-member-row${isOwner && member.role !== 'owner' ? ' family-member-row-with-action' : ''}`} key={member.userId}>
+                  <div className="family-member-identity">
+                    <span aria-hidden="true" className="family-member-avatar">{memberInitials(member.name)}</span>
+                    <div className="family-member-copy">
+                      <p className="family-member-name">{member.name}</p>
+                      <p className="family-member-joined">
+                        Se unió <time dateTime={member.joinedAt}>{new Date(member.joinedAt).toLocaleDateString('es-CR')}</time>
+                      </p>
+                    </div>
                   </div>
+                  <p className="family-member-role">{member.role === 'owner' ? 'Responsable' : 'Miembro'}</p>
                   {isOwner && member.role !== 'owner' && (
                     <button
-                      className="min-h-9 w-fit rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      className="family-member-remove min-h-9 w-fit rounded-lg border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                       disabled={workingAction !== null}
                       onClick={() => void removeMember(member)}
                       type="button"
@@ -427,6 +462,18 @@ export default function FamilyGroupsPanel({
               ))}
             </ul>
           )}
+        </section>
+      )}
+
+      {!group && (
+        <section className="family-empty-state">
+          <div className="family-empty-copy">
+            <span aria-hidden="true" className="family-empty-mark">+</span>
+            <div>
+              <h3>Comparte suscripciones en familia</h3>
+              <p>Crear una familia no cambia tu espacio Personal. Después podrás elegirla desde el selector de espacio.</p>
+            </div>
+          </div>
         </section>
       )}
     </section>
