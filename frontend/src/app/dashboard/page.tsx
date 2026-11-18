@@ -635,7 +635,6 @@ export default function DashboardPage() {
               {view.label}
             </button>
           ))}
-          <Link className="app-shell-nav-item" href="/notifications">Notificaciones</Link>
         </nav>
       }
       context={

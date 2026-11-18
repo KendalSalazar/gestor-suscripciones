@@ -49,65 +49,55 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
-        <Link className="text-sm font-medium text-violet-700 hover:text-violet-900" href="/">
-          ← Inicio
-        </Link>
-        <p className="mt-8 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-          Gestor de suscripciones
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-          Inicia sesión
-        </h1>
-        <p className="mt-3 text-slate-600">
-          Usa tu cuenta para consultar las suscripciones de tu grupo personal.
-        </p>
+    <main className="app-design login-page">
+      <section aria-labelledby="login-heading" className="login-panel">
+        <div className="login-brand">
+          <span aria-hidden="true" className="login-brand-mark">↻</span>
+          <span>Gestor de suscripciones</span>
+        </div>
 
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="email">
-              Correo electrónico
-            </label>
+        <Link className="login-home" href="/">Volver al inicio</Link>
+
+        <header className="login-heading">
+          <h1 id="login-heading">Inicia sesión</h1>
+          <p>Accede a tus suscripciones y pagos compartidos.</p>
+        </header>
+
+        <form aria-busy={isSubmitting} className="login-form" onSubmit={handleSubmit}>
+          <div className="login-field">
+            <label className="app-design-label" htmlFor="email">Correo electrónico</label>
             <input
               autoComplete="email"
-              className="min-h-12 w-full rounded-xl border border-slate-300 px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+              autoCapitalize="none"
+              className="ui-field"
               id="email"
               name="email"
               onChange={(event) => setEmail(event.target.value)}
               required
               type="email"
               value={email}
+              aria-describedby={error ? 'login-error' : undefined}
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="password">
-              Contraseña
-            </label>
+          <div className="login-field">
+            <label className="app-design-label" htmlFor="password">Contraseña</label>
             <input
               autoComplete="current-password"
-              className="min-h-12 w-full rounded-xl border border-slate-300 px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100"
+              className="ui-field"
               id="password"
               name="password"
               onChange={(event) => setPassword(event.target.value)}
               required
               type="password"
               value={password}
+              aria-describedby={error ? 'login-error' : undefined}
             />
           </div>
 
-          {error && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <p className="ui-feedback ui-feedback-error login-error" id="login-error" role="alert">{error}</p>}
 
-          <button
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-violet-700 px-6 font-medium text-white transition hover:bg-violet-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSubmitting}
-            type="submit"
-          >
+          <button className="ui-button login-submit" disabled={isSubmitting} type="submit">
             {isSubmitting ? 'Ingresando…' : 'Entrar'}
           </button>
         </form>

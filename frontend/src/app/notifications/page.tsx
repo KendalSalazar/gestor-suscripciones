@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, apiWithSession, refreshSession } from '@/lib/api';
 import { session } from '@/lib/session';
+import AppShell from '@/components/app-shell';
 
 type Group = { id: string; name: string; type: 'personal' | 'family' };
 type Notice = {
@@ -232,63 +233,207 @@ export default function NotificationsPage() {
     }
   }
 
-  if (auth === 'loading') return <main className="mx-auto max-w-4xl p-6"><p role="status">Cargando sesión...</p></main>;
-  if (auth === 'unauthenticated') return <main className="mx-auto max-w-4xl p-6"><h1 className="text-2xl font-semibold">Notificaciones</h1><p className="mt-4">Inicia sesión para consultar tus avisos.</p><Link className="mt-4 inline-block underline" href="/login">Ir a iniciar sesión</Link></main>;
-  if (auth === 'error') return <main className="mx-auto max-w-4xl p-6"><h1 className="text-2xl font-semibold">Notificaciones</h1><p className="mt-4" role="alert">No pudimos recuperar tu sesión. Comprueba la conexión e inténtalo de nuevo.</p><button className="mt-4 underline" onClick={() => { setAuth('loading'); setAuthVersion((current) => current + 1); }}>Reintentar</button></main>;
+  if (auth === 'loading') return (
+    <main className="app-design notification-gate">
+      <h1>Notificaciones</h1>
+      <p className="notification-gate-state" role="status">Comprobando tu sesión…</p>
+    </main>
+  );
+  if (auth === 'unauthenticated') return (
+    <main className="app-design notification-gate">
+      <h1>Notificaciones</h1>
+      <p className="notification-gate-state">Inicia sesión para consultar tus avisos.</p>
+      <Link className="ui-button" href="/login">Iniciar sesión</Link>
+    </main>
+  );
+  if (auth === 'error') return (
+    <main className="app-design notification-gate">
+      <h1>Notificaciones</h1>
+      <p className="ui-feedback ui-feedback-error" role="alert">No pudimos recuperar tu sesión. Comprueba la conexión e inténtalo de nuevo.</p>
+      <button className="ui-button ui-button-secondary" onClick={() => { setAuth('loading'); setAuthVersion((current) => current + 1); }} type="button">Reintentar</button>
+    </main>
+  );
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">Notificaciones</h1>
-        <p>Consulta los avisos de tus suscripciones.</p>
-        {unreadCount !== null && <p aria-live="polite">Sin leer: <strong>{unreadCount}</strong></p>}
-      </header>
-
-      <section aria-label="Filtros de notificaciones" className="space-y-4 rounded-xl border border-slate-300 p-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1" htmlFor="notice-group">Espacio
-            <select id="notice-group" className="min-w-0 max-w-full rounded border border-slate-400 p-2" value={groupId} onChange={(event) => changeFilters(event.target.value, status)} disabled={groupsState !== 'ready'}>
-              <option value="">Todos los espacios</option>
-              {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.type === 'family' ? 'Familiar' : 'Personal'})</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1" htmlFor="notice-status">Estado de lectura
-            <select id="notice-status" className="rounded border border-slate-400 p-2" value={status} onChange={(event) => changeFilters(groupId, event.target.value as Status)}>
-              <option value="all">Todos</option><option value="unread">Sin leer</option><option value="read">Leídos</option>
-            </select>
-          </label>
-        </div>
-        {groupsState === 'loading' && <p role="status">Cargando espacios...</p>}
-        {groupsState === 'error' && <p role="alert">No pudimos cargar los espacios. Puedes seguir consultando los avisos. <button className="underline" onClick={() => { setGroupsState('loading'); setGroupsVersion((current) => current + 1); }}>Reintentar espacios</button></p>}
-        {contextMessage && <p role="status">{contextMessage}</p>}
-        <button className="rounded border border-slate-500 px-4 py-2 hover:bg-slate-100 hover:text-slate-900" onClick={refresh}>Actualizar</button>
-      </section>
-
-      <section aria-label="Listado de notificaciones" aria-busy={listState === 'loading' || loadingMore} className="space-y-4">
-        {listState === 'loading' && <p role="status">Cargando avisos...</p>}
-        {listState === 'error' && <div role="alert"><p>{listError}</p><button className="mt-2 underline" onClick={refresh}>Reintentar</button></div>}
-        {listState === 'ready' && notices.length === 0 && <p>{status === 'all' && !groupId ? 'Todavía no tienes avisos.' : 'No hay avisos para estos filtros.'}</p>}
-        {listState === 'ready' && notices.length > 0 && (
-          <ul className="space-y-4">
-            {notices.map((notice) => (
-              <li key={notice.id} className="space-y-2 rounded-xl border border-slate-300 p-4 [overflow-wrap:anywhere]">
-                <div className="flex flex-wrap justify-between gap-2"><strong>{typeLabels[notice.type]}</strong><span>{notice.readAt ? 'Leído' : 'Sin leer'}</span></div>
-                <p>{notice.message}</p>
-                <p><strong>{notice.subscriptionName}</strong> · {notice.groupName} ({notice.groupType === 'family' ? 'Familiar' : 'Personal'})</p>
-                <p>Fecha prevista: {calendarDate(notice.expectedDate)} · Importe previsto: {notice.expectedAmount}{notice.actualAmount !== null && ` · Importe registrado: ${notice.actualAmount}`}</p>
-                <p>Pago: {paymentLabels[notice.paymentStatus]}{notice.groupType === 'family' && notice.ownShareStatus && ` · Tu parte: ${paymentLabels[notice.ownShareStatus]}`}</p>
-                {notice.actionRequired && <p>Tu confirmación está pendiente.</p>}
-                <p className="text-sm">Aviso creado: <time dateTime={notice.createdAt}>{timestamp(notice.createdAt)}</time></p>
-                <Link className="inline-block underline text-violet-700 hover:text-violet-900" href={`/dashboard?groupId=${encodeURIComponent(notice.groupId)}&view=payments`}>Abrir pagos de este grupo</Link>
-                {actionFeedback?.notificationId === notice.id && <p role={actionFeedback.isError ? 'alert' : 'status'}>{actionFeedback.message}</p>}
-                {!notice.readAt && <button className="rounded border border-slate-500 px-4 py-2 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50" disabled={markingReadId !== null} onClick={() => void markAsRead(notice)}>{markingReadId === notice.id ? 'Marcando...' : 'Marcar como leído'}</button>}
-              </li>
-            ))}
-          </ul>
+    <AppShell
+      context={<p className="notification-context">Avisos de tus espacios</p>}
+      description="Revisa los avisos de tus suscripciones y las acciones que tienes pendientes."
+      navigation={(
+        <nav aria-label="Secciones principales" className="app-shell-navigation">
+          <Link className="app-shell-nav-item" href="/dashboard">Dashboard</Link>
+        </nav>
+      )}
+      title="Notificaciones"
+      notificationsActive
+      actions={(
+        <button className="ui-button ui-button-secondary" onClick={refresh} type="button">
+          Actualizar avisos
+        </button>
+      )}
+    >
+      <div className="notification-page">
+        {unreadCount !== null && (
+          <p aria-live="polite" className="notification-unread-summary">
+            <span>Avisos sin leer</span>
+            <strong>{unreadCount}</strong>
+          </p>
         )}
-        {listState === 'ready' && listError && <p role="alert">{listError}</p>}
-        {listState === 'ready' && nextCursor && <button className="rounded border border-slate-500 px-4 py-2 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50" disabled={loadingMore} onClick={loadMore}>{loadingMore ? 'Cargando...' : 'Cargar más'}</button>}
-      </section>
-    </main>
+
+        <section aria-label="Filtros de notificaciones" className="notification-filters">
+          <div className="notification-filter-fields">
+            <label htmlFor="notice-group">
+              Espacio
+              <select
+                className="ui-field"
+                disabled={groupsState !== 'ready'}
+                id="notice-group"
+                onChange={(event) => changeFilters(event.target.value, status)}
+                value={groupId}
+              >
+                <option value="">Todos los espacios</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name} ({group.type === 'family' ? 'Familiar' : 'Personal'})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="notice-status">
+              Estado de lectura
+              <select
+                className="ui-field"
+                id="notice-status"
+                onChange={(event) => changeFilters(groupId, event.target.value as Status)}
+                value={status}
+              >
+                <option value="all">Todos</option>
+                <option value="unread">Sin leer</option>
+                <option value="read">Leídos</option>
+              </select>
+            </label>
+          </div>
+          {groupsState === 'loading' && <p className="notification-inline-state" role="status">Cargando espacios…</p>}
+          {groupsState === 'error' && (
+            <div className="notification-inline-error">
+              <p role="alert">No pudimos cargar los espacios. Puedes seguir consultando todos tus avisos.</p>
+              <button className="ui-button ui-button-secondary" onClick={() => { setGroupsState('loading'); setGroupsVersion((current) => current + 1); }} type="button">
+                Reintentar espacios
+              </button>
+            </div>
+          )}
+          {contextMessage && <p className="notification-context-message" role="status">{contextMessage}</p>}
+        </section>
+
+        <section
+          aria-busy={listState === 'loading' || loadingMore}
+          aria-labelledby="notification-list-heading"
+          className="notification-list-section"
+        >
+          <header className="notification-list-heading">
+            <div>
+              <h2 id="notification-list-heading">Actividad</h2>
+            </div>
+          </header>
+
+          {listState === 'loading' && <p className="notification-state" role="status">Cargando avisos…</p>}
+          {listState === 'error' && (
+            <div className="notification-state notification-state-error">
+              <p role="alert">{listError}</p>
+              <button className="ui-button ui-button-secondary" onClick={refresh} type="button">Reintentar avisos</button>
+            </div>
+          )}
+          {listState === 'ready' && notices.length === 0 && (
+            <p className="notification-state notification-state-empty">
+              {status === 'all' && !groupId ? 'Todavía no tienes avisos.' : 'No hay avisos para estos filtros.'}
+            </p>
+          )}
+          {listState === 'ready' && notices.length > 0 && (
+            <ul className="notification-list">
+              {notices.map((notice) => (
+                <li className={`notification-row${notice.readAt ? '' : ' notification-row-unread'}`} key={notice.id}>
+                  <div className="notification-row-heading">
+                    <div className="notification-kind-and-state">
+                      <h3 className="notification-service">{notice.subscriptionName}</h3>
+                      <span className={`notification-read-state${notice.readAt ? ' notification-read-state-read' : ' notification-read-state-unread'}`}>
+                        {notice.readAt ? 'Leído' : 'Sin leer'}
+                      </span>
+                    </div>
+                    <time className="notification-created-at" dateTime={notice.createdAt}>{timestamp(notice.createdAt)}</time>
+                  </div>
+
+                  <p className="notification-message">{notice.message}</p>
+                  <p className="notification-service-context">
+                    <span>{typeLabels[notice.type]}</span>
+                    <span>{notice.groupName} ({notice.groupType === 'family' ? 'Familiar' : 'Personal'})</span>
+                  </p>
+
+                  <details className="notification-details">
+                    <summary>Ver detalles<span className="notification-sr-only"> de {notice.subscriptionName}</span></summary>
+                    <dl className="notification-facts">
+                    <div>
+                      <dt>Fecha prevista</dt>
+                      <dd><time dateTime={notice.expectedDate}>{calendarDate(notice.expectedDate)}</time></dd>
+                    </div>
+                    <div>
+                      <dt>Importe previsto</dt>
+                      <dd>{notice.expectedAmount}</dd>
+                    </div>
+                    {notice.actualAmount !== null && (
+                      <div>
+                        <dt>Importe registrado</dt>
+                        <dd>{notice.actualAmount}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>Estado del pago</dt>
+                      <dd>{paymentLabels[notice.paymentStatus]}</dd>
+                    </div>
+                    {notice.groupType === 'family' && notice.ownShareStatus && (
+                      <div>
+                        <dt>Tu parte</dt>
+                        <dd>{paymentLabels[notice.ownShareStatus]}</dd>
+                      </div>
+                    )}
+                    </dl>
+                  </details>
+
+                  {notice.actionRequired && (
+                    <p className="notification-action-required">Tu confirmación está pendiente.</p>
+                  )}
+                  {actionFeedback?.notificationId === notice.id && (
+                    <p className={`notification-action-feedback${actionFeedback.isError ? ' notification-action-feedback-error' : ''}`} role={actionFeedback.isError ? 'alert' : 'status'}>
+                      {actionFeedback.message}
+                    </p>
+                  )}
+                  <div className="notification-row-actions">
+                    <Link className="notification-payments-link" href={`/dashboard?groupId=${encodeURIComponent(notice.groupId)}&view=payments`}>
+                      Abrir pagos de este grupo
+                    </Link>
+                    {!notice.readAt && (
+                      <button
+                        className="ui-button ui-button-secondary"
+                        disabled={markingReadId !== null}
+                        onClick={() => void markAsRead(notice)}
+                        type="button"
+                      >
+                        {markingReadId === notice.id ? 'Marcando…' : 'Marcar como leído'}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {listState === 'ready' && listError && <p className="notification-load-more-error" role="alert">{listError}</p>}
+          {listState === 'ready' && nextCursor && (
+            <div className="notification-load-more">
+              <button className="ui-button ui-button-secondary" disabled={loadingMore} onClick={loadMore} type="button">
+                {loadingMore ? 'Cargando…' : 'Cargar más avisos'}
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+    </AppShell>
   );
 }

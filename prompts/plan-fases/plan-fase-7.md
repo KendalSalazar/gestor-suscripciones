@@ -1,6 +1,6 @@
 # Plan Fase 7 — Rediseño visual y organización del frontend
 
-**Estado al 17 de noviembre de 2026: bloques 1 a 10 implementados; el bloque 10 queda pendiente de revisión visual del propietario. Suscripciones ya fue revisada; Pagos personal/familiar está disponible para revisión. Diseño aprobado con acento #CF7FFF. Bloques 11 a 18 pendientes.**
+**Estado al 17 de noviembre de 2026: bloques 1 a 14 implementados. Familia e Invitaciones ya fueron revisadas por el propietario; Notificaciones y Acceso esperan revisión visual. Los bloques 15 a 18 siguen pendientes. El build de los bloques 13 y 14 no se pudo completar por la descarga de Geist desde Google Fonts; ESLint y TypeScript sí pasaron. Acento aprobado: #CF7FFF.**
 Alcance original en [07-fase.md](../07-fase.md). Una entrega por bloque, con
 explicación, comprobación y parada. Crear este plan no ejecuta sus bloques.
 
@@ -361,7 +361,8 @@ una key propia a cada panel.
 
 Implementado según la propuesta aprobada por el propietario, con `frontend-designer`
 y la skill `frontend-design`. El `reviewer` no encontró hallazgos en este bloque.
-La revisión visual del propietario sigue pendiente; no se registran capturas nuevas.
+El propietario revisó el ajuste visual el 17 de noviembre; no se registran
+capturas nuevas.
 
 - [x] En Familia seleccionada, la lista continua de miembros aparece antes del
   panel administrativo. Cada fila muestra inicial violeta, nombre, fecha y rol;
@@ -377,7 +378,7 @@ La revisión visual del propietario sigue pendiente; no se registran capturas nu
   distintos, eliminando la colisión preexistente entre paneles hermanos.
 - [x] ESLint, `tsc --noEmit`, `git diff --check` y la ruta local del dashboard
   (HTTP 200) aprobados. Sin cambios de API, backend ni datos de producto.
-- [ ] Revisión visual del propietario en escritorio y móvil.
+- [x] Revisión visual del propietario; sin captura nueva archivada.
 
 ### Bloque 11 — Administración familiar (17 de noviembre de 2026)
 
@@ -390,8 +391,8 @@ La revisión visual del propietario sigue pendiente; no se registran capturas nu
 - [x] Revisión estática de accesibilidad y reglas de rol. Se corrigió el
   `aria-controls` para que su destino permanezca montado y oculto al cerrar.
 - [x] ESLint, TypeScript y `git diff --check` aprobados; no se cambiaron APIs,
-  backend, persistencia ni reglas de producto. Revisión visual del propietario
-  pendiente en escritorio y móvil.
+  backend, persistencia ni reglas de producto. El propietario revisó el área el
+  17 de noviembre; no se registran capturas nuevas.
 
 ### Bloque 12 — Invitaciones completas (17 de noviembre de 2026)
 
@@ -405,8 +406,59 @@ Implementación visual delegada a `frontend-designer` con la skill
 - [x] Se mantienen handlers, permisos, payloads y estados de error/carga; el
   código sigue solo en memoria y no se expone en URL, almacenamiento ni logs.
 - [x] ESLint, `tsc --noEmit` y `git diff --check` aprobados. Sin cambios de API,
-  backend ni persistencia. No hubo inspección de navegador; la revisión visual
-  del propietario queda pendiente en escritorio y móvil.
+  backend ni persistencia. El propietario revisó y aceptó el área el 17 de
+  noviembre; no se registran capturas nuevas.
+
+### Bloque 13 — Notificaciones (17 de noviembre de 2026)
+
+Implementado por `frontend-designer` con la skill `frontend-design`; revisión
+estática de `reviewer` sin regresiones funcionales. Hallazgo de landmarks
+corregido al diferenciar el nombre accesible de navegación.
+
+- [x] Se integró `AppShell`; la vista separa avisos sin leer, filtros y actividad.
+  Cada fila distingue tipo, lectura, servicio, importes, estados del pago y la
+  acción contextual pendiente.
+- [x] Se conservan filtro inicial «Todos los espacios», filtro de lectura,
+  conteo, cursor/cargar más, abortos, recarga, marcar como leído, estados y
+  enlace contextual a pagos con `groupId`.
+- [x] ESLint, `tsc --noEmit` y `git diff --check` aprobados; revisión estática
+  `reviewer` sin hallazgos pendientes. El build intentado no pudo descargar
+  Geist/Geist Mono desde Google Fonts por falta de conexión. No hubo inspección
+  en navegador; revisión visual del propietario pendiente.
+
+#### Ajuste solicitado: campana, avisos compactos y acceso al inicio
+
+- El acceso a Notificaciones pasa del menú lateral a una campana de 44 px en la
+  cabecera derecha compartida. Abre `/notifications`, tiene nombre accesible y
+  señala la página activa; no añade consultas ni conteos ficticios.
+- Los avisos muestran servicio, mensaje, lectura, contexto y obligación pendiente.
+  Los importes y estados adicionales se consultan mediante «Ver detalles»;
+  filtros, cursor, enlaces y acciones de lectura conservan su lógica.
+- El menú lateral queda adherido al viewport en escritorio, con navegación
+  desplazable y enlace al inicio al pie. En móvil el enlace queda fijo abajo,
+  con espacio reservado para el contenido.
+- ESLint, TypeScript y `git diff --check` aprobados. La ruta local respondió
+  HTTP 200; el navegador automatizado no estuvo disponible para inspección
+  visual. Se usó un perfil temporal que se eliminó; no se modificaron datos.
+- Revisión visual de estos ajustes pendiente, incluidos desplazamiento largo,
+  ventanas de baja altura y móvil.
+- Revisión estática independiente: handlers idénticos a HEAD. Se corrigió el
+  recorte del foco en el menú desplazable reservando 6 px alrededor; lint,
+  TypeScript y revisión de diff posteriores aprobados.
+
+### Bloque 14 — Acceso (17 de noviembre de 2026)
+
+Implementado por `frontend-designer` con la skill `frontend-design`; revisión
+estática de `reviewer` sin hallazgos.
+
+- [x] La pantalla de login adopta la paleta y los controles de Fase 7, con
+  jerarquía clara y composición adaptable. Los errores se asocian a ambos campos
+  y el formulario anuncia su estado de envío.
+- [x] Se conserva el endpoint `/auth/login`, payload, mensajes, token en sesión,
+  bloqueo mientras envía y redirección a `/dashboard`; sin flujo adicional.
+- [x] ESLint, `tsc --noEmit` y `git diff --check` aprobados. El build intentado
+  no pudo descargar Geist/Geist Mono desde Google Fonts por falta de conexión.
+  No hubo inspección en navegador; revisión visual del propietario pendiente.
 
 ## 1. Resultado deseado y límites
 
@@ -440,7 +492,8 @@ visual a lo disponible; cualquier ampliación de producto requiere otro alcance.
 Reglas de composición:
 
 - Navegación estable con estado activo. En dashboard: Suscripciones, Pagos y
-  Familia; enlace independiente a Notificaciones. El acceso «Tengo un código de
+  Familia; campana en la esquina superior derecha para abrir Notificaciones.
+  El acceso «Tengo un código de
   invitación» queda únicamente dentro de Familia, lleva a `/invitations` y no
   depende de seleccionar una familia ni de ser owner.
 - El selector de espacio es contexto de trabajo, separado de la navegación.
@@ -553,9 +606,9 @@ necesitan una propuesta visual actualizada antes de aplicarse.
 
 ## 5. Bloques y puntos de parada
 
-Bloques 1 a 9 implementados y comprobados según los registros anteriores.
-Suscripciones ya fue revisada; Pagos personal/familiar queda en revisión visual
-del propietario. Filas 10 a 18 pendientes.
+Bloques 1 a 14 implementados y comprobados según sus registros. El propietario
+revisó Familia e Invitaciones; Notificaciones y Acceso están pendientes de
+revisión visual. Los bloques 15 a 18 siguen pendientes.
 Antes: explicar alcance, archivos y concepto.
 Después: mostrar resultado, evidencia y límite, actualizar solo su checklist y
 detenerse. Si una fila exige cambios grandes de lógica, dividirla antes de editar.
@@ -668,7 +721,8 @@ servidores, perfiles de navegador ni scripts temporales del recorrido.
 - [x] Navegación y contexto de espacio en dashboard coherentes; introducir código fácil de encontrar. Integración visual de las otras rutas pendiente de sus bloques.
 - [x] Suscripciones consultables sin formularios que compitan con la lista; revisada por el propietario.
 - [x] Pagos personales y partes familiares claramente diferenciados; pendiente aceptación visual del propietario.
-- [ ] Miembros, administración e invitaciones organizados según tarea y permiso.
+- [x] Miembros, administración e invitaciones organizados según tarea y permiso;
+  revisión visual del propietario completada para Familia e Invitaciones.
 - [ ] Notificaciones y login integrados en el mismo lenguaje visual.
 - [ ] Sesión, borradores, recargas, enlaces y permisos conservados.
 - [ ] Importes string, fechas DATE y límites de las listas conservados.
