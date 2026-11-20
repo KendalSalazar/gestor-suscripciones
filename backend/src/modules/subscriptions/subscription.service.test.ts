@@ -112,56 +112,57 @@ describe('subscription billing anchor', () => {
   });
 });
 
-describe('subscription deletion preserves payment history', () => {
-  it('allows deleting a subscription without payments within the authorized group', async () => {
+describe('subscription deletion removes its payment history atomically', () => {
+  function allowDeletion(): void {
     allowWrite();
+    for (let index = 0; index < 3; index += 1) mockQuery.mockResolvedValueOnce({ rows: [] });
     mockQuery.mockResolvedValueOnce({ rows: [{ id: subscriptionId }] });
+  }
 
+  it('deletes only the target history in dependency order and commits on the same client', async () => {
+    allowDeletion();
     await expect(deleteSubscription(userId, groupId, subscriptionId)).resolves.toBeUndefined();
-    expect(mockQuery).toHaveBeenNthCalledWith(5,
-      expect.stringContaining('WHERE group_id = $1 AND id = $2'), [groupId, subscriptionId]);
+    const deletes = mockQuery.mock.calls.slice(4, 8);
+    expect(deletes.map(([sql]) => sql.match(/DELETE FROM (\w+)/)?.[1]))
+      .toEqual(['notifications', 'payment_shares', 'payments', 'subscriptions']);
+    for (const [sql, values] of deletes) {
+      expect(sql).toContain('group_id = $1');
+      expect(sql).toContain('$2');
+      expect(values).toEqual([groupId, subscriptionId]);
+    }
+    expect(mockQuery).toHaveBeenLastCalledWith('COMMIT');
+    expect(mockRelease).toHaveBeenCalledOnce();
+    expect(mockPoolQuery).not.toHaveBeenCalled();
   });
 
-  it('keeps 404 for a missing subscription in the authorized group', async () => {
+  it('keeps 404 and rolls back for a missing subscription in the authorized group', async () => {
     allowWrite();
-    mockQuery.mockResolvedValueOnce({ rows: [] });
-
     await expect(deleteSubscription(userId, groupId, subscriptionId)).rejects.toMatchObject({
       status: 404, message: 'Subscription not found',
     });
+    expect(mockQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
   });
 
-  it('translates only the payments subscription foreign key violation to 409', async () => {
+  it.each([0, 1, 2, 3])('rolls back if dependent deletion step %s fails', async (step) => {
     allowWrite();
-    mockQuery.mockRejectedValueOnce({ code: '23503', constraint: 'payments_subscription_id_fkey' });
-
-    await expect(deleteSubscription(userId, groupId, subscriptionId)).rejects.toEqual(
-      new AppError(409, 'Subscription has payment history; deactivate it instead'),
-    );
-    // No fallback DELETE or other write may remove the history after the rejection.
-    expect(mockQuery).toHaveBeenCalledTimes(6);
+    for (let index = 0; index < step; index += 1) mockQuery.mockResolvedValueOnce({ rows: [] });
+    const error = new Error('Forced deletion failure');
+    mockQuery.mockRejectedValueOnce(error);
+    await expect(deleteSubscription(userId, groupId, subscriptionId)).rejects.toBe(error);
     expect(mockQuery).toHaveBeenLastCalledWith('ROLLBACK');
+    expect(mockRelease).toHaveBeenCalledOnce();
+    expect(mockQuery.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
   });
 
   it.each([
+    { code: '23503', constraint: 'payments_subscription_id_fkey' },
     { code: '23503', constraint: 'another_subscription_id_fkey' },
-    { code: '23503' },
-    { code: '23505', constraint: 'payments_subscription_id_fkey' },
     new Error('Database unavailable'),
-    null,
-  ])('propagates other database errors unchanged: %j', async (error) => {
+  ])('propagates database errors unchanged: %j', async (error) => {
     allowWrite();
     mockQuery.mockRejectedValueOnce(error);
-
     await expect(deleteSubscription(userId, groupId, subscriptionId)).rejects.toBe(error);
-  });
-
-  it('does not translate the payments foreign key error during a different operation', async () => {
-    allowWrite();
-    const error = { code: '23503', constraint: 'payments_subscription_id_fkey' };
-    mockQuery.mockRejectedValueOnce(error);
-
-    await expect(createSubscription(userId, groupId, input)).rejects.toBe(error);
   });
 });
 
@@ -222,6 +223,9 @@ describe('subscription write permissions', () => {
 
   it.each(writes)('uses one client and commits %s only after revalidating membership', async (_operation, write) => {
     allowWrite();
+    if (_operation === 'delete') {
+      for (let index = 0; index < 3; index += 1) mockQuery.mockResolvedValueOnce({ rows: [] });
+    }
     mockQuery.mockResolvedValueOnce({ rows: [row] });
 
     await write();
@@ -232,19 +236,22 @@ describe('subscription write permissions', () => {
     expect(mockQuery).toHaveBeenNthCalledWith(2, expect.stringContaining("status = 'active'"), [userId, groupId]);
     expect(mockQuery).toHaveBeenNthCalledWith(3, 'SELECT type FROM groups WHERE id = $1 FOR UPDATE', [groupId]);
     expect(mockQuery).toHaveBeenNthCalledWith(4, expect.stringContaining("status = 'active'"), [userId, groupId]);
-    expect(mockQuery).toHaveBeenCalledTimes(6);
+    expect(mockQuery).toHaveBeenCalledTimes(_operation === 'delete' ? 9 : 6);
     expect(mockQuery).toHaveBeenLastCalledWith('COMMIT');
     expect(mockRelease).toHaveBeenCalledTimes(1);
   });
 
   it.each(writes)('rolls back and releases %s when commit fails', async (_operation, write) => {
     allowWrite();
+    if (_operation === 'delete') {
+      for (let index = 0; index < 3; index += 1) mockQuery.mockResolvedValueOnce({ rows: [] });
+    }
     mockQuery.mockResolvedValueOnce({ rows: [row] });
     const error = new Error('Commit failed');
     mockQuery.mockRejectedValueOnce(error);
 
     await expect(write()).rejects.toBe(error);
-    expect(mockQuery).toHaveBeenNthCalledWith(6, 'COMMIT');
+    expect(mockQuery).toHaveBeenNthCalledWith(_operation === 'delete' ? 9 : 6, 'COMMIT');
     expect(mockQuery).toHaveBeenLastCalledWith('ROLLBACK');
     expect(mockRelease).toHaveBeenCalledTimes(1);
   });

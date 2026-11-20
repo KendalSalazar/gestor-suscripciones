@@ -20,6 +20,7 @@ export class ApiError extends Error {
 }
 
 let refreshPromise: Promise<string> | null = null;
+let logoutPromise: Promise<void> | null = null;
 
 function getApiUrl(path: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -89,6 +90,8 @@ async function requestNewAccessToken(): Promise<string> {
 }
 
 export function refreshSession(): Promise<string> {
+  // A new refresh must not rotate the cookie while logout revokes it.
+  if (logoutPromise) return Promise.reject(new ApiError('Session closing', 401));
   // Share one refresh request between simultaneous callers. Refresh tokens rotate,
   // so parallel requests with the same cookie could invalidate the token family.
   if (!refreshPromise) {
@@ -97,6 +100,22 @@ export function refreshSession(): Promise<string> {
     });
   }
   return refreshPromise;
+}
+
+export function logoutSession(): Promise<void> {
+  if (!logoutPromise) {
+    logoutPromise = (async () => {
+      // Let an existing rotation finish before sending its latest cookie.
+      await refreshPromise?.catch(() => undefined);
+      await api<null>('/auth/logout', { method: 'POST' });
+      session.setAccessToken(null);
+    })().catch((error: unknown) => {
+      logoutPromise = null;
+      throw error;
+    });
+  }
+  // Remain closed on success until the full navigation unloads this module.
+  return logoutPromise;
 }
 
 export async function apiWithSession<T>(path: string, init: RequestInit = {}): Promise<T | null> {

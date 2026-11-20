@@ -99,7 +99,6 @@ Los errores siguen el formato `{ "error": { "message": string, "status": number 
 | `401` | Falta el access token o no es válido |
 | `403` | No hay membresía activa o el rol no permite escribir |
 | `404` | La suscripción no existe dentro del grupo autorizado |
-| `409` | Se intentó borrar una suscripción con historial de pagos; se puede desactivar |
 | `500` | Error interno |
 
 ## Identidad para el dashboard

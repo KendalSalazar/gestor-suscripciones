@@ -35,7 +35,47 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Dashboard personal — Fase 4, bloque 8
+## Acceso y cierre de sesión — Fase 8
+
+La portada pública está en `/` y explica el producto sin consultar la API. Sus
+enlaces permiten crear cuenta o iniciar sesión; los ejemplos de Personal y
+Familia son ilustrativos, no operaciones reales. Los pagos se anotan manualmente:
+la aplicación no mueve dinero. La invitación a una familia continúa dentro de
+Familia después de iniciar sesión.
+
+`/register` comprueba la sesión antes de mostrar el formulario. Si hay una sesión
+activa, un diálogo permite ir al dashboard, volver al inicio o cerrar sesión y
+crear otra cuenta. Esa última opción revoca la cookie mediante `/auth/logout` y
+recarga `/register` para limpiar el access token que se conserva en memoria. Si
+la comprobación de sesión falla, ofrece reintentar y no trata el fallo como una
+sesión ausente.
+
+Sin sesión, el formulario solicita nombre (1–100 caracteres), correo (hasta 255,
+recortado y normalizado a minúsculas), contraseña (8–72 caracteres) y su
+confirmación. La confirmación y la validación de campos ocurren solo en el
+frontend; el endpoint existente recibe nombre, correo y contraseña. El alta
+exitosa abre el dashboard Personal y la cookie httpOnly permite recuperar sesión
+al recargar. El proyecto no afirma que el correo haya sido verificado.
+
+Los errores `400` explican que hay que revisar los datos; `409` indica que ese
+correo ya tiene cuenta y ofrece login. Los fallos de servidor, red o respuesta
+inesperada se distinguen y permiten tomar una acción deliberada. El alta no se
+reenvía automáticamente, porque una desconexión puede dejar incierto si el
+servidor completó la operación.
+
+Dashboard y Notificaciones ofrecen «Cerrar sesión» junto a la campana. La acción
+reutiliza `/auth/logout`, limpia el token en memoria al completarse y abre login
+con una navegación completa. La renovación de sesión se coordina con el cierre
+para no rotar la cookie a la vez.
+
+Los escenarios manuales de registro, sesión activa, cierre, errores recuperables,
+teclado y anchos de la portada están listados en
+`prompts/plan-fases/plan-fase-8.md`; siguen pendientes de revisar en navegador.
+Lint, TypeScript y build pasaron para la implementación actual. La coordinación
+de logout también se comprobó con respuestas simuladas, sin operaciones sobre
+cuentas reales.
+
+## Dashboard personal — Fase 4, bloque 8 (referencia histórica)
 
 El dashboard conserva el formulario y listado de suscripciones, y añade pagos
 pendientes e historial. Cada listado tiene sus estados de carga, vacío, error y

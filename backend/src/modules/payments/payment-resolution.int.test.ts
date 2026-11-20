@@ -140,7 +140,7 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     expect((await payments.confirmPayment(ownerId, groupId, id)).status).toBe('confirmed');
   });
 
-  it('resolves payments and preserves history through HTTP with real PostgreSQL', async () => {
+  it('resolves payments, deactivates and deletes subscriptions through HTTP with real PostgreSQL', async () => {
     const { app } = await import('../../app');
     const { signAccessToken } = await import('../auth/auth.tokens');
     const ownerToken = signAccessToken({ id: ownerId, email: `${prefix}-owner@example.com` });
@@ -182,7 +182,6 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
       expect((await request(`/payments/${changedId}/confirm`, 'POST', {})).status).toBe(409);
       expect((await request(`/payments/${skippedId}/skip`, 'POST')).status).toBe(409);
       expect((await request(`/payments/${expectedId}/confirm`, 'POST', {}, memberToken)).status).toBe(403);
-      expect((await request(`/subscriptions/${subscriptionId}`, 'DELETE')).status).toBe(409);
       const deactivated = await request(`/subscriptions/${subscriptionId}`, 'PATCH', { active: false });
       expect(deactivated.status).toBe(200);
       expect(await deactivated.json()).toMatchObject({ subscription: { active: false, expectedCost } });
@@ -193,6 +192,19 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
         expect.objectContaining({ id: changedId, status: 'confirmed' }),
         expect.objectContaining({ id: skippedId, status: 'skipped' }),
       ]) });
+      // Deletion uses its own subscription so later cases retain their shared payment fixture.
+      const disposable = await subscriptions.createSubscription(ownerId, groupId, {
+        name: `${prefix}-http-delete`, provider: 'Test', expectedCost: '10.00',
+        billingCycle: 'monthly', nextBillingDate: '2099-12-31',
+      });
+      subscriptionIds.push(disposable.id);
+      const disposablePayment = randomUUID();
+      await database.query(`INSERT INTO payments (id, subscription_id, expected_date, expected_amount)
+        VALUES ($1, $2, '2099-01-01', '10.00')`, [disposablePayment, disposable.id]);
+      expect((await request(`/subscriptions/${disposable.id}`, 'DELETE', undefined, memberToken)).status).toBe(403);
+      expect((await request(`/subscriptions/${disposable.id}`, 'DELETE')).status).toBe(204);
+      expect((await request(`/subscriptions/${disposable.id}`)).status).toBe(404);
+      expect((await database.query('SELECT id FROM payments WHERE id = $1', [disposablePayment])).rows).toEqual([]);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve());
@@ -212,13 +224,13 @@ describeWithDatabase('payment resolution with PostgreSQL', () => {
     }
   });
 
-  it('preserves history on DELETE and still allows deactivation', async () => {
+  it('preserves history on deactivation and removes it on explicit DELETE', async () => {
     const id = await pendingPayment();
-    await expect(subscriptions.deleteSubscription(ownerId, groupId, subscriptionId)).rejects.toMatchObject({
-      status: 409, message: 'Subscription has payment history; deactivate it instead',
-    });
     await subscriptions.updateSubscription(ownerId, groupId, subscriptionId, { active: false });
     expect((await payments.listPayments(ownerId, groupId)).some((payment) => payment.id === id)).toBe(true);
+    await subscriptions.deleteSubscription(ownerId, groupId, subscriptionId);
+    expect(await payments.listPayments(ownerId, groupId)).toEqual([]);
+    await expect(subscriptions.getSubscription(ownerId, groupId, subscriptionId)).rejects.toMatchObject({ status: 404 });
   });
 
   it('sets and resets the anchor day and can delete a subscription without payments', async () => {

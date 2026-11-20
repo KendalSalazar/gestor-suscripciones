@@ -1,6 +1,6 @@
 # Plan Fase 7 — Rediseño visual y organización del frontend
 
-**Estado al 18 de noviembre de 2026: bloques 1 a 16 registrados. Bloque 17: las 1.092 pruebas backend pasan; siguen pendientes los recorridos UI con dos cuentas. Bloque 18: checks de cierre pasan; falta aceptación visual de Notificaciones/Acceso y matriz móvil/teclado. Familia e Invitaciones ya fueron revisadas. Builds 13/14 y 18 completan con red autorizada. Acento aprobado: #CF7FFF.**
+**Estado al 19 de noviembre de 2026: Fase 7 completada. Bloques 17 y 18 cerrados con confirmación manual del propietario y 1.095 pruebas backend aprobadas en 47 archivos, incluido el borrado definitivo individual de suscripciones. Frontend lint, TypeScript y build; backend typecheck/build aprobados. El propietario inspeccionó carga, vacío y error/recuperación en Notificaciones. Las capturas finales se omitieron por decisión explícita del propietario; la comparativa histórica está indexada. Acento aprobado: #CF7FFF.**
 Alcance original en [07-fase.md](../07-fase.md). Una entrega por bloque, con
 explicación, comprobación y parada. Crear este plan no ejecuta sus bloques.
 
@@ -479,11 +479,11 @@ estática de `reviewer` sin hallazgos.
   inicio» permanece fuera del área desplazable del menú lateral.
 - [x] ESLint, TypeScript y `git diff --check` aprobados. No se cambió lógica ni
   contratos.
-- [ ] Inspección real a 360, 390, 768 y 1440 px, zoom 200 %, orden Tab, foco
-  visible, ventana baja y contenido bajo la barra fija. Chrome no respondió al
-  intento CDP; no se marca esta matriz como probada.
+- [x] El propietario confirma el 19 de noviembre la matriz de inspección a
+  360, 390, 768 y 1440 px, zoom 200 %, navegación por teclado y revisión visual.
+  Es evidencia manual reportada; el intento CDP anterior no la había completado.
 
-### Bloque 17 — Regresión de flujos (18 de noviembre de 2026, parcial)
+### Bloque 17 — Regresión de flujos (completado el 19 de noviembre de 2026)
 
 - [x] `reviewer` realizó revisión estática de permisos por grupo/rol, borradores,
   sesión, invitaciones, pagos y notificaciones. No detectó regresiones. Se
@@ -491,9 +491,27 @@ estática de `reviewer` sin hallazgos.
 - [x] Frontend lint y TypeScript aprobados. Backend Vitest con
   `RUN_DB_TESTS=1`: 46 archivos y 1.092 pruebas aprobadas, incluidas las de
   integración con PostgreSQL aislado.
-- [ ] Recorridos críticos con dos cuentas y validación de escrituras/permisos
-  en navegador. No se afirma que esos recorridos pasaron ni que la matriz DB
-  esté completa.
+- [x] El propietario confirma que completó en navegador los recorridos críticos
+  con dos cuentas y validó escrituras, permisos y cambios de acceso. Esta es una
+  comprobación manual reportada por el propietario; no se afirma que la matriz
+  automatizada completa de base de datos esté cubierta.
+- [x] Pruebas de `deleteSubscription` alineadas con el contrato que elimina
+  pagos, partes y notificaciones. Suite PostgreSQL final: 47 archivos y 1.095
+  pruebas aprobadas con `RUN_DB_TESTS=1`, `--maxWorkers=2` y configuración de
+  desarrollo de `.env.example` en `localhost:5432`. Las variables de entorno
+  se restauraron al finalizar. No se ejecutaron jobs globales ni migraciones
+  sobre datos del usuario.
+- [x] Nueva integración en esquema exclusivo: historial pendiente/confirmado/
+  omitido, preservación de otras suscripciones y grupos, permisos, UUID ajenos,
+  repetición y rollback ante fallo tardío. El esquema y trigger se eliminan
+  al terminar. Los otros tests usan sus fixtures y limpieza por UUID existentes.
+- [x] Se corrigieron dos expectativas antiguas de `409`, incluidos sus escenarios
+  HTTP, y la fila obsoleta de errores en `backend/docs/subscriptions.md`.
+  Revisión estática independiente sin hallazgos pendientes en este alcance.
+- Limitación del primer intento: el proceso CLI de `tsx` falló en Windows con
+  `uv_os_get_passwd / ENOMEM` dentro del entorno restringido. La ejecución
+  completa fuera de esa restricción pasó; no se alteró código para ocultar el
+  fallo. La advertencia Vite sobre configuración CommonJS no impidió la suite.
 - Diagnóstico de acceso (18 de noviembre): la conclusión previa de PostgreSQL
   inactivo era incorrecta. El entorno restringido no podía leer la configuración
   de Docker ni acceder a su named pipe; por eso usaba el contexto `default`.
@@ -502,14 +520,29 @@ estática de `reviewer` sin hallazgos.
   desde Node a `localhost:5432` con `.env.example` aprobadas. No se leyeron `.env`
   reales ni se modificaron datos.
 
-### Bloque 18 — Cierre (18 de noviembre de 2026, parcial)
+### Bloque 18 — Cierre (completado el 19 de noviembre de 2026)
 
 - [x] Frontend lint, TypeScript y build aprobados. Backend typecheck y build
   aprobados. Suite backend con DB: 1.092 pruebas aprobadas. `git diff --check`
   aprobado; no se añadieron dependencias.
-- [ ] Dos cuentas, inspección visual en navegador, comparación antes/después y
-  aceptación de Notificaciones/Acceso, zoom, móvil y teclado siguen pendientes.
-  No se marca la fase cerrada hasta registrar esas comprobaciones.
+- [x] El propietario confirma la inspección visual en navegador de Suscripciones,
+  Pagos, Notificaciones y Acceso, además de la revisión responsive y de teclado.
+- [x] Comprobaciones técnicas repetidas el 19 de noviembre: frontend lint,
+  TypeScript y build; backend typecheck/build; suite PostgreSQL de 1.095 pruebas
+  y `git diff --check`. El build frontend pasó al habilitar red para Google Fonts.
+- [x] [Comparativa histórica indexada](../diseno/fase-7/comparativa.md), con
+  enlaces comprobados a archivos existentes y sus límites documentados.
+- [x] Capturas finales de Familia, Invitaciones, Notificaciones, Acceso y del
+  último panel de gestión de suscripción omitidas por decisión explícita del
+  propietario (19 de noviembre de 2026). No se presentan capturas antiguas como
+  evidencia del estado final.
+- [x] Suite backend reejecutada después de alinear el borrado individual;
+  revisión estática de servicios, permisos, transacciones y tests completada.
+- [x] El propietario inspeccionó en Notificaciones los estados de carga, vacío
+  y error/recuperación: con Slow 4G observó «Comprobando tu sesión…» durante la
+  carga; filtros sin resultados mostraron correctamente el mensaje de avisos
+  vacíos; al simular un fallo de conexión apareció el error y el reintento
+  recuperó la lista correctamente.
 
 ## 1. Resultado deseado y límites
 
@@ -657,11 +690,12 @@ necesitan una propuesta visual actualizada antes de aplicarse.
 
 ## 5. Bloques y puntos de parada
 
-Implementación de bloques 1 a 16 registrada según sus comprobaciones. La suite
-backend de bloque 17 pasa completa con PostgreSQL; sus recorridos UI con dos
-cuentas quedan pendientes. Checks técnicos del bloque 18 pasan. El propietario
-revisó Familia e Invitaciones; Notificaciones, Acceso y matriz responsive/
-teclado aún esperan inspección visual antes de cerrar la fase.
+Implementación de bloques 1 a 16 registrada según sus comprobaciones. Bloque 17
+completado el 19 de noviembre: suite PostgreSQL de 1.095 pruebas y recorridos UI
+con dos cuentas confirmados por el propietario. Bloque 18 completado: checks
+técnicos, aceptación visual, matriz responsive/teclado y estados de carga, vacío
+y error/recuperación confirmados por el propietario. Las capturas finales se
+omitieron por decisión explícita del propietario.
 Antes: explicar alcance, archivos y concepto.
 Después: mostrar resultado, evidencia y límite, actualizar solo su checklist y
 detenerse. Si una fila exige cambios grandes de lógica, dividirla antes de editar.
@@ -771,17 +805,21 @@ servidores, perfiles de navegador ni scripts temporales del recorrido.
 
 - [x] Inventario de código, comprobaciones base y capturas reales previas registrados.
 - [x] Propuesta visual desktop/móvil aceptada por el propietario con ajustes de color y entrada de código en Familia.
-- [x] Navegación y contexto de espacio en dashboard coherentes; introducir código fácil de encontrar. Integración visual de las otras rutas pendiente de sus bloques.
+- [x] Navegación y contexto de espacio coherentes; introducir código fácil de encontrar e integración visual de las rutas confirmada por el propietario.
 - [x] Suscripciones consultables sin formularios que compitan con la lista; revisada por el propietario.
-- [x] Pagos personales y partes familiares claramente diferenciados; pendiente aceptación visual del propietario.
+- [x] Pagos personales y partes familiares claramente diferenciados; el propietario confirma la aceptación visual.
 - [x] Miembros, administración e invitaciones organizados según tarea y permiso;
   revisión visual del propietario completada para Familia e Invitaciones.
-- [ ] Notificaciones y login integrados en el mismo lenguaje visual.
-- [ ] Sesión, borradores, recargas, enlaces y permisos conservados.
-- [ ] Importes string, fechas DATE y límites de las listas conservados.
-- [ ] Carga, vacío, error, móvil y teclado inspeccionados en navegador.
-- [ ] Dos cuentas completaron los recorridos críticos con fixtures autorizadas.
-- [ ] Revisión de cambios sin hallazgos pendientes; checks de cierre registrados.
-- [ ] Landing, contratos backend y datos existentes conservados.
-- [ ] Comparativa antes/después y aceptación visual del propietario registradas.
-- [ ] Sin dependencias innecesarias, artefactos temporales ni trabajo de fases futuras.
+- [x] Notificaciones y login integrados en el mismo lenguaje visual; el propietario confirma la aceptación visual.
+- [x] Sesión, borradores, recargas, enlaces y permisos revisados estáticamente; recorridos críticos confirmados por el propietario.
+- [x] Importes string, fechas DATE y límites de las listas conservados según revisión estática y suite de regresión.
+- [x] Estados de carga, vacío y error/recuperación inspeccionados en navegador
+  en Notificaciones, según confirmación del propietario.
+- [x] Vista móvil y navegación por teclado inspeccionadas en navegador, según confirmación del propietario.
+- [x] Dos cuentas completaron los recorridos críticos con fixtures autorizadas, según confirmación del propietario.
+- [x] Revisión estática sin hallazgos pendientes en el alcance revisado; checks de cierre registrados.
+- [x] Landing conservada. Como ampliación autorizada por el propietario, eliminar familias o suscripciones también elimina su historial asociado; contratos documentados. Las pruebas usan datos exclusivos de prueba.
+- [x] Comparativa antes/después disponible mediante las galerías históricas
+  enlazadas; la aceptación visual del propietario está confirmada en conversación.
+  Las capturas finales se omitieron por decisión explícita del propietario.
+- [x] Sin dependencias nuevas ni scripts temporales en el repositorio; las ampliaciones de borrado fueron solicitadas expresamente por el propietario.

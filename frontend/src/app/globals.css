@@ -522,6 +522,23 @@ body {
   width: 100%;
 }
 
+.app-design .login-register {
+  padding-top: 20px;
+  margin-top: 22px;
+  border-top: 1px solid var(--app-line);
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.app-design .login-register a {
+  color: var(--app-accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 @media (max-width: 767px) {
   .app-design.login-page {
     align-items: start;
@@ -1545,6 +1562,39 @@ body {
   margin-left: auto;
 }
 
+.app-design .app-shell-mobile-account-slot {
+  display: none;
+}
+
+.app-design .app-shell-desktop-account-slot {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.app-design .app-shell-account-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.app-design .app-shell-logout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 240px;
+}
+
+.app-design .app-shell-logout > button {
+  white-space: nowrap;
+}
+
+.app-design .app-shell-logout-error {
+  margin-top: 8px;
+  color: var(--app-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .app-design.app-shell :is(a, button, input, select, summary) {
   scroll-margin-block: 16px 84px;
 }
@@ -2182,20 +2232,56 @@ body {
   }
 
   .app-design .app-shell-account {
-    align-self: flex-start;
-    flex-direction: column-reverse;
-    align-items: flex-end;
-    gap: 8px;
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-left: 0;
+  }
+
+  .app-design .app-shell-mobile-account-slot {
+    display: block;
+    width: 100%;
+  }
+
+  .app-design .app-shell-desktop-account-slot {
+    display: none;
+  }
+
+  .app-design .app-shell-account-actions {
+    grid-column: 2;
+  }
+
+  .app-design .app-shell-logout {
+    min-width: 0;
+    max-width: 180px;
+  }
+
+  .app-design .app-shell-logout-error {
+    overflow-wrap: anywhere;
   }
 
   .app-design .app-shell-user {
-    max-width: 12ch;
-    text-align: right;
+    min-width: 0;
+    max-width: none;
+    text-align: left;
   }
 
   .app-design .app-shell-context {
     gap: 16px;
     padding: 18px;
+  }
+
+  .app-design .app-shell-context-fields {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .app-design .app-shell-space {
+    width: 100%;
   }
 
   .app-design .app-shell-main {
@@ -2633,5 +2719,1332 @@ body {
 
   .app-design.notification-gate {
     padding: 32px 18px;
+  }
+}
+
+/* Phase 8: approved registration composition; styles stay inside this route. */
+.app-design.register-page {
+  min-height: 100vh;
+  background: var(--app-canvas);
+}
+
+.app-design.register-page .register-wrap {
+  width: min(1240px, calc(100% - 80px));
+  margin-inline: auto;
+}
+
+.app-design.register-page .register-header {
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.app-design.register-page .register-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.35px;
+  text-decoration: none;
+}
+
+.app-design.register-page .register-brand-symbol {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px 12px 12px 3px;
+  background: var(--app-brand);
+  color: var(--app-on-brand);
+  font-size: 25px;
+}
+
+.app-design.register-page .register-login-link,
+.app-design.register-page .register-back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  color: var(--app-accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+
+.app-design.register-page .register-back {
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.app-design.register-page :is(a, button):focus-visible {
+  outline: 3px solid var(--app-accent);
+  outline-offset: 4px;
+}
+
+.app-design.register-page svg {
+  flex-shrink: 0;
+}
+
+.app-design.register-page .register-main {
+  padding-block: 28px 70px;
+}
+
+.app-design.register-page .register-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.94fr);
+  max-width: 1100px;
+  align-items: start;
+  gap: clamp(50px, 9vw, 120px);
+  margin-inline: auto;
+}
+
+.app-design.register-page .register-story {
+  min-width: 0;
+  padding-top: 0;
+}
+
+.app-design.register-page .register-story h1 {
+  max-width: 11ch;
+  margin-top: 33px;
+  font-size: clamp(40px, 4.5vw, 61px);
+  font-weight: 650;
+  line-height: 1.06;
+  letter-spacing: -2.5px;
+}
+
+.app-design.register-page .register-story > p {
+  max-width: 36ch;
+  margin-top: 20px;
+  color: var(--app-muted);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.app-design.register-page .register-personal-sheet {
+  position: relative;
+  max-width: 385px;
+  padding: 26px;
+  margin-top: 36px;
+  border: 1px solid #e4c7f7;
+  border-radius: 12px;
+  background: var(--app-selection);
+}
+
+.app-design.register-page .register-personal-sheet::before {
+  position: absolute;
+  top: -1px;
+  left: 27px;
+  width: 35px;
+  height: 6px;
+  border-radius: 0 0 4px 4px;
+  background: var(--app-brand);
+  content: '';
+}
+
+.app-design.register-page .register-sheet-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-design.register-page .register-sheet-person {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #e4c7f7;
+  border-radius: 50%;
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.app-design.register-page .register-sheet-title strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.app-design.register-page .register-sheet-title p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.app-design.register-page .register-sheet-lines {
+  display: grid;
+  gap: 11px;
+  margin-top: 25px;
+}
+
+.app-design.register-page .register-sheet-lines span {
+  width: 80%;
+  height: 8px;
+  border-radius: 3px;
+  background: #e5d5ef;
+}
+
+.app-design.register-page .register-sheet-lines span:nth-child(2) {
+  width: 57%;
+}
+
+.app-design.register-page .register-sheet-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 16px;
+  margin-top: 23px;
+  border-top: 1px solid #e1cbee;
+}
+
+.app-design.register-page .register-sheet-bottom > p {
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-design.register-page .register-avatars {
+  display: flex;
+}
+
+.app-design.register-page .register-avatars span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 3px solid var(--app-selection);
+  border-radius: 50%;
+  background: #e9d5f8;
+  color: var(--app-accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.app-design.register-page .register-avatars span + span {
+  margin-left: -6px;
+  background: #dce9f1;
+  color: #486279;
+}
+
+.app-design.register-page .register-story > .register-manual-note {
+  display: flex;
+  max-width: 34ch;
+  align-items: start;
+  gap: 9px;
+  margin-top: 23px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-design.register-page .register-manual-note svg {
+  margin-top: 2px;
+  color: var(--app-accent);
+}
+
+.app-design.register-page .register-form-panel {
+  min-width: 0;
+  padding: 30px 32px;
+  border: 1px solid #d1dbe6;
+  border-radius: 14px;
+  background: var(--app-surface);
+  box-shadow: 0 16px 45px -35px #52637570;
+}
+
+.app-design.register-page .register-form-panel h2 {
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.6px;
+}
+
+.app-design.register-page .register-form-intro {
+  margin-block: 8px 25px;
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.app-design.register-page .register-field {
+  margin-top: 18px;
+}
+
+.app-design.register-page .register-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-design.register-page .register-field .ui-field {
+  display: block;
+  min-height: 47px;
+  padding-block: 11px;
+  line-height: 1.4;
+}
+
+.app-design.register-page .ui-field::placeholder {
+  color: #718091;
+}
+
+.app-design.register-page .ui-field[aria-invalid='true'] {
+  border-color: var(--app-danger);
+}
+
+.app-design.register-page .register-field-hint,
+.app-design.register-page .register-field-error {
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-design.register-page .register-field-hint {
+  color: var(--app-muted);
+}
+
+.app-design.register-page .register-field-error {
+  color: var(--app-danger);
+}
+
+.app-design.register-page .register-password-wrap {
+  position: relative;
+}
+
+.app-design.register-page .register-password-wrap .ui-field {
+  padding-right: 84px;
+}
+
+.app-design.register-page .register-password-toggle {
+  position: absolute;
+  top: 2px;
+  right: 5px;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-design.register-page .register-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 24px;
+}
+
+.app-design.register-page .register-fields {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.app-design.register-page.register-gate {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 100svh;
+  padding: 32px 24px;
+}
+
+.app-design.register-page .register-gate-panel {
+  width: min(100%, 440px);
+}
+
+.app-design.register-page .register-session-dialog {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  width: min(calc(100vw - 32px), 480px);
+  max-height: min(calc(100svh - 32px), 560px);
+  margin: 0;
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid var(--app-line);
+  border-radius: 16px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 24px 72px rgb(29 43 58 / 22%);
+  transform: translate(-50%, -50%);
+}
+
+.app-design.register-page .register-session-dialog::backdrop {
+  background: rgb(29 43 58 / 48%);
+  backdrop-filter: blur(3px);
+}
+
+.app-design.register-page .register-session-dialog h1 {
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.app-design.register-page .register-session-dialog > p:not(.ui-feedback) {
+  margin-top: 12px;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.app-design.register-page .register-session-dialog .ui-feedback {
+  margin-top: 16px;
+}
+
+.app-design.register-page .register-session-dialog-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.app-design.register-page .register-session-dialog-actions .ui-button {
+  width: 100%;
+  min-height: 46px;
+}
+
+.app-design.register-page .register-session-dialog-cancel {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-accent);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-design.register-page .register-session-dialog :is(button, a):focus-visible {
+  outline: 3px solid var(--app-accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .app-design.register-page .register-session-dialog {
+    padding: 24px 20px;
+  }
+
+  .app-design.register-page .register-session-dialog h1 {
+    font-size: 21px;
+  }
+}
+
+.app-design.register-page .register-gate-panel > .ui-feedback {
+  margin-block: 24px 16px;
+}
+
+.app-design.register-page .register-submit-error,
+.app-design.register-page .register-session-message {
+  margin-top: 16px;
+}
+
+.app-design.register-page .register-session-message {
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.app-design.register-page .register-session-message button {
+  margin-top: 12px;
+}
+
+.app-design.register-page .register-form-login {
+  padding-top: 21px;
+  margin-top: 22px;
+  border-top: 1px solid var(--app-line);
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.app-design.register-page .register-form-login a {
+  color: var(--app-accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.app-design.register-page .register-footer {
+  padding-block: 24px 30px;
+  border-top: 1px solid var(--app-line);
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.app-design.register-page .register-footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-design.register-page .register-footer strong {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+@media (max-width: 1000px) {
+  .app-design.register-page .register-wrap {
+    width: calc(100% - 48px);
+  }
+
+  .app-design.register-page .register-layout {
+    gap: 45px;
+  }
+
+  .app-design.register-page .register-form-panel {
+    padding: 27px 24px;
+  }
+
+  .app-design.register-page .register-story h1 {
+    font-size: 49px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-design.register-page .register-wrap {
+    width: calc(100% - 40px);
+  }
+
+  .app-design.register-page .register-header {
+    min-height: 84px;
+    gap: 12px;
+  }
+
+  .app-design.register-page .register-brand {
+    gap: 8px;
+    font-size: 13px;
+    letter-spacing: -0.25px;
+  }
+
+  .app-design.register-page .register-brand-symbol {
+    flex-basis: 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 10px 10px 10px 3px;
+  }
+
+  .app-design.register-page .register-login-link {
+    font-size: 12px;
+  }
+
+  .app-design.register-page .register-main {
+    padding-block: 0 40px;
+  }
+
+  .app-design.register-page .register-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 25px;
+  }
+
+  .app-design.register-page .register-story {
+    padding-top: 0;
+  }
+
+  .app-design.register-page .register-story h1 {
+    max-width: 15ch;
+    margin-top: 20px;
+    font-size: 42px;
+    letter-spacing: -1.8px;
+  }
+
+  .app-design.register-page .register-story > p {
+    max-width: 42ch;
+    margin-top: 14px;
+    font-size: 15px;
+  }
+
+  .app-design.register-page .register-personal-sheet,
+  .app-design.register-page .register-story > .register-manual-note {
+    display: none;
+  }
+
+  .app-design.register-page .register-form-panel {
+    width: 100%;
+    max-width: 520px;
+    padding: 24px 22px;
+    margin-inline: auto;
+    border-radius: 11px;
+  }
+
+  .app-design.register-page .register-form-panel h2 {
+    font-size: 23px;
+  }
+
+  .app-design.register-page .register-back {
+    min-height: 44px;
+    font-size: 12px;
+  }
+
+  .app-design.register-page .register-form-intro {
+    font-size: 12px;
+  }
+
+  .app-design.register-page .register-footer {
+    padding-block: 22px;
+  }
+
+  .app-design.register-page .register-footer > div {
+    flex-direction: column;
+    gap: 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-design.register-page .register-wrap {
+    width: calc(100% - 32px);
+  }
+
+  .app-design.register-page .register-brand > span:last-child {
+    max-width: 145px;
+    line-height: 1.2;
+  }
+
+  .app-design.register-page .register-story h1 {
+    font-size: 38px;
+  }
+
+  .app-design.register-page .register-form-panel {
+    padding: 23px 18px;
+  }
+}
+
+/* Phase 8: public home hero and product specimen. */
+.app-design.home-page {
+  min-height: 100vh;
+  background: var(--app-canvas);
+}
+
+.app-design.home-page .home-shell {
+  width: min(1240px, calc(100% - 80px));
+  margin-inline: auto;
+}
+
+.app-design.home-page .home-header {
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.app-design.home-page .home-brand {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.35px;
+  text-decoration: none;
+}
+
+.app-design.home-page .home-brand-mark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 12px 12px 12px 3px;
+  background: var(--app-brand);
+  color: var(--app-on-brand);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.app-design.home-page .home-header-nav a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--app-accent);
+  font-size: 14px;
+  font-weight: 650;
+  text-underline-offset: 4px;
+}
+
+.app-design.home-page :is(a, button):focus-visible {
+  outline: 3px solid var(--app-accent);
+  outline-offset: 4px;
+}
+
+.app-design.home-page .home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  align-items: center;
+  gap: clamp(40px, 5vw, 72px);
+  padding-block: 48px 88px;
+}
+
+.app-design.home-page .home-hero-copy {
+  min-width: 0;
+  padding-bottom: 14px;
+}
+
+.app-design.home-page .home-hero h1 {
+  max-width: 11.5ch;
+  color: var(--app-text);
+  font-size: clamp(46px, 5.25vw, 74px);
+  font-weight: 680;
+  line-height: 1.035;
+  letter-spacing: -0.065em;
+}
+
+.app-design.home-page .home-hero-description {
+  max-width: 38ch;
+  margin-top: 24px;
+  color: var(--app-muted);
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.app-design.home-page .home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.app-design.home-page .home-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 23px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}
+
+.app-design.home-page .home-button-primary {
+  border-color: var(--app-brand);
+  background: var(--app-brand);
+  color: var(--app-on-brand);
+}
+
+.app-design.home-page .home-button-primary:hover {
+  border-color: var(--app-accent);
+}
+
+.app-design.home-page .home-button-secondary {
+  border-color: #b8c5d2;
+  background: transparent;
+  color: var(--app-text);
+}
+
+.app-design.home-page .home-button-secondary:hover {
+  background: var(--app-surface);
+}
+
+.app-design.home-page .home-hero-detail {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 18px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-design.home-page .home-hero-detail svg {
+  flex: 0 0 auto;
+  color: var(--app-accent);
+}
+
+.app-design.home-page .home-hero-visual {
+  min-width: 0;
+  padding-top: 18px;
+}
+
+.app-design.home-page .home-specimen-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.app-design.home-page .home-specimen-label span:last-child {
+  padding: 4px 9px;
+  border: 1px solid var(--app-line);
+  border-radius: 5px;
+  background: var(--app-surface);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.app-design.home-page .home-product-window {
+  overflow: hidden;
+  border: 1px solid #c9d2df;
+  border-radius: 15px;
+  background: var(--app-surface);
+  box-shadow: 0 18px 50px -26px rgb(82 99 117 / 40%);
+}
+
+.app-design.home-page .home-product-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.app-design.home-page .home-product-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-product-brand .home-brand-mark {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  border-radius: 7px 7px 7px 2px;
+  font-size: 16px;
+}
+
+.app-design.home-page .home-account-dot {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f7ebfd;
+  color: var(--app-accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-demo-tabs {
+  display: flex;
+  width: fit-content;
+  gap: 4px;
+  margin: 16px 20px 0;
+  padding: 4px;
+  border-radius: 7px;
+  background: #f0f3f7;
+}
+
+.app-design.home-page .home-demo-tabs button {
+  min-height: 44px;
+  padding: 6px 15px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-design.home-page .home-demo-tabs button[aria-pressed='true'] {
+  border-color: var(--app-line);
+  background: var(--app-surface);
+  color: var(--app-accent);
+  box-shadow: 0 1px 2px rgb(29 43 58 / 8%);
+}
+
+.app-design.home-page .home-product-content {
+  padding: 18px 20px 0;
+}
+
+.app-design.home-page .home-product-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 19px;
+}
+
+.app-design.home-page .home-product-context h2 {
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-product-context p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.app-design.home-page .home-context-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: #f7ebfd;
+  color: var(--app-accent);
+}
+
+.app-design.home-page .home-service-head,
+.app-design.home-page .home-service-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-design.home-page .home-service-head {
+  grid-template-columns: 1fr auto;
+  padding: 0 0 8px 48px;
+  color: var(--app-muted);
+  font-size: 10px;
+}
+
+.app-design.home-page .home-service-row {
+  min-height: 68px;
+  border-top: 1px solid #e7ebf0;
+}
+
+.app-design.home-page .home-service-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 11px;
+  background: #f7ebfd;
+  color: var(--app-accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-service-icon-neutral {
+  background: #eef2f6;
+  color: var(--app-muted);
+}
+
+.app-design.home-page .home-service-row strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-service-row p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.app-design.home-page .home-service-value {
+  min-width: 74px;
+  text-align: right;
+}
+
+.app-design.home-page .home-service-value strong {
+  font-size: 13px;
+}
+
+.app-design.home-page .home-notice-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  margin-top: 9px;
+  border-radius: 7px;
+  background: #faf6fd;
+  color: var(--app-accent);
+}
+
+.app-design.home-page .home-notice-preview > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.app-design.home-page .home-notice-preview strong,
+.app-design.home-page .home-family-shares strong {
+  display: block;
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+.app-design.home-page .home-notice-preview p,
+.app-design.home-page .home-family-shares p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app-design.home-page .home-example-foot {
+  padding-block: 10px 12px;
+  color: var(--app-muted);
+  font-size: 10px;
+}
+
+.app-design.home-page .home-family-shares {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px;
+  margin-top: 9px;
+  border-radius: 7px;
+  background: #f6f8fb;
+}
+
+.app-design.home-page .home-avatars {
+  display: flex;
+  flex: 0 0 auto;
+  padding-left: 4px;
+}
+
+.app-design.home-page .home-avatars span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  margin-left: -4px;
+  border: 2px solid var(--app-surface);
+  border-radius: 50%;
+  background: #ead3f8;
+  color: var(--app-accent);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-avatars span:nth-child(2) {
+  background: #e6edf5;
+  color: var(--app-muted);
+}
+
+.app-design.home-page .home-avatars span:nth-child(3) {
+  background: #f4e5f9;
+}
+
+.app-design.home-page .home-space-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #e5eaf0;
+  background: #fbfcfd;
+}
+
+.app-design.home-page .home-note-check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f0e0fa;
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-design.home-page .home-space-note strong {
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+.app-design.home-page .home-space-note p {
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .app-design.home-page .home-shell {
+    width: min(calc(100% - 48px), 700px);
+  }
+
+  .app-design.home-page .home-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding-top: 28px;
+  }
+
+  .app-design.home-page .home-hero-copy {
+    padding-bottom: 0;
+  }
+
+  .app-design.home-page .home-hero h1 {
+    max-width: 13ch;
+    font-size: clamp(48px, 8vw, 68px);
+  }
+
+  .app-design.home-page .home-hero-visual {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-design.home-page .home-shell {
+    width: calc(100% - 36px);
+  }
+
+  .app-design.home-page .home-header {
+    min-height: 76px;
+    gap: 12px;
+  }
+
+  .app-design.home-page .home-brand {
+    gap: 9px;
+    font-size: 13px;
+  }
+
+  .app-design.home-page .home-brand-mark {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+    font-size: 22px;
+  }
+
+  .app-design.home-page .home-header-nav a {
+    font-size: 12px;
+  }
+
+  .app-design.home-page .home-hero {
+    gap: 28px;
+    padding-block: 28px 48px;
+  }
+
+  .app-design.home-page .home-hero h1 {
+    max-width: 11.5ch;
+    font-size: clamp(40px, 11.2vw, 54px);
+    letter-spacing: -0.06em;
+  }
+
+  .app-design.home-page .home-hero-description {
+    max-width: 36ch;
+    margin-top: 17px;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .app-design.home-page .home-actions {
+    align-items: stretch;
+    gap: 9px;
+    margin-top: 22px;
+  }
+
+  .app-design.home-page .home-button {
+    min-height: 46px;
+    flex: 1 1 auto;
+    padding-inline: 14px;
+    font-size: 13px;
+  }
+
+  .app-design.home-page .home-hero-detail {
+    align-items: flex-start;
+    margin-top: 13px;
+    font-size: 11px;
+  }
+
+  .app-design.home-page .home-product-topbar {
+    padding-inline: 14px;
+  }
+
+  .app-design.home-page .home-demo-tabs {
+    margin-inline: 14px;
+  }
+
+  .app-design.home-page .home-product-content {
+    padding-inline: 14px;
+  }
+
+  .app-design.home-page .home-service-head {
+    padding-left: 46px;
+  }
+
+  .app-design.home-page .home-service-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .app-design.home-page .home-service-value {
+    min-width: 62px;
+  }
+
+  .app-design.home-page .home-service-row strong {
+    font-size: 11px;
+  }
+
+  .app-design.home-page .home-service-row p {
+    font-size: 9px;
+  }
+
+  .app-design.home-page .home-space-note {
+    padding-inline: 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-design.home-page .home-shell {
+    width: calc(100% - 28px);
+  }
+
+  .app-design.home-page .home-brand {
+    font-size: 12px;
+  }
+
+  .app-design.home-page .home-header-nav a {
+    font-size: 11px;
+  }
+
+  .app-design.home-page .home-hero h1 {
+    font-size: 39px;
+  }
+
+  .app-design.home-page .home-button {
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+}
+
+/* Phase 8, block 8: concise explanation of real product capabilities. */
+.app-design.home-page .home-guide {
+  padding-block: 46px 30px;
+  border-top: 1px solid var(--app-line);
+}
+
+.app-design.home-page .home-guide-heading {
+  max-width: 620px;
+}
+
+.app-design.home-page .home-guide-heading h2 {
+  color: var(--app-text);
+  font-size: clamp(28px, 3.2vw, 38px);
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+}
+
+.app-design.home-page .home-guide-heading p {
+  margin-top: 10px;
+  color: var(--app-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.app-design.home-page .home-guide-list {
+  max-width: 1000px;
+  padding: 0;
+  margin: 24px 0 0;
+  list-style: none;
+}
+
+.app-design.home-page .home-guide-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  padding-block: 20px;
+  border-top: 1px solid var(--app-line);
+}
+
+.app-design.home-page .home-guide-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #e9d3f4;
+  border-radius: 10px;
+  background: #f7ebfd;
+  color: var(--app-accent);
+}
+
+.app-design.home-page .home-guide-item-copy {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(0, 1.2fr);
+  align-items: baseline;
+  gap: 24px;
+  padding-top: 2px;
+}
+
+.app-design.home-page .home-guide-item h3 {
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
+.app-design.home-page .home-guide-item p {
+  max-width: 58ch;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.app-design.home-page .home-manual-note {
+  padding: 16px 0 0 14px;
+  margin-top: 18px;
+  border-top: 1px solid var(--app-line);
+  border-left: 3px solid var(--app-brand);
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .app-design.home-page .home-guide {
+    padding-block: 36px 24px;
+  }
+
+  .app-design.home-page .home-guide-heading p {
+    max-width: 42ch;
+    font-size: 14px;
+  }
+
+  .app-design.home-page .home-guide-list {
+    margin-top: 20px;
+  }
+
+  .app-design.home-page .home-guide-item {
+    gap: 13px;
+    padding-block: 17px;
+  }
+
+  .app-design.home-page .home-guide-item-copy {
+    display: block;
+    padding-top: 1px;
+  }
+
+  .app-design.home-page .home-guide-item h3 {
+    font-size: 15px;
+  }
+
+  .app-design.home-page .home-guide-item p {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-design.home-page .home-guide-item {
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .app-design.home-page .home-guide-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-design.home-page .home-manual-note {
+    padding-left: 11px;
+    font-size: 12px;
   }
 }

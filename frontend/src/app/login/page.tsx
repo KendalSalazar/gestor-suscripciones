@@ -101,6 +101,7 @@ export default function LoginPage() {
             {isSubmitting ? 'Ingresando…' : 'Entrar'}
           </button>
         </form>
+        <p className="login-register">¿Todavía no tienes cuenta? <Link href="/register">Crear cuenta</Link></p>
       </section>
     </main>
   );
